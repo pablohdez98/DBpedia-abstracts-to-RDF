@@ -75,7 +75,7 @@ Both alternatives require three configuration files at your fingertips. These ar
 For more information visit [blog post 10][9] where the different arguments that exist when executing any interface are explained.
 
 ## Docker usage
-In order to use the Docker image with all the neccesary libraries installed, you should run the following commands inside the root folder (/DBpedia-abstracts-to-RDF). This docker file will run the script code/app/app.py with the input file located in code/app/input.txt. You are free to make any change in the code and rebuild the image to see the execution with the new changes.
+In order to use the Docker image with all the neccesary libraries installed, you should run the following commands inside the root folder (/DBpedia-abstracts-to-RDF). This docker file will run the script [`code/app/app.py`][11] with the input file located in [`code/app/input.txt`][12]. You are free to make any change in the code and rebuild the image to see the execution with the new changes.
 ```bash
 $ docker build pablohdez98/dbpedia-abstracts-to-rdf .   # To build the image with the last code changes
 $ docker run pablohdez98/dbpedia-abstracts-to-rdf       # To run the code
@@ -106,3 +106,5 @@ Finally, it would also be nice to implement a system to always have the lexicali
 [8]: https://github.com/Fcabla/DBpedia-abstracts-to-RDF/tree/main/spotlight
 [9]: https://fcabla.github.io/DBpedia-abstracts-to-RDF/coding-week10
 [10]: https://github.com/Fcabla/DBpedia-abstracts-to-RDF/blob/main/datasets/dbo_ontology_2021.08.06.owl
+[11]: ./code/app/input.txt
+[12]: ./code/app/app.py
