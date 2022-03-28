@@ -74,6 +74,13 @@ Both alternatives require three configuration files at your fingertips. These ar
 
 For more information visit [blog post 10][9] where the different arguments that exist when executing any interface are explained.
 
+## Docker usage
+In order to use the Docker image with all the neccesary libraries installed, you should run the following commands inside the root folder (/DBpedia-abstracts-to-RDF). This docker file will run the script code/app/app.py with the input file located in code/app/input.txt. You are free to make any change in the code and rebuild the image to see the execution with the new changes.
+```bash
+$ docker build pablohdez98/dbpedia-abstracts-to-rdf .   # To build the image with the last code changes
+$ docker run pablohdez98/dbpedia-abstracts-to-rdf       # To run the code
+```
+
 ## Future work (what is left to do)
 The main problem of the pipeline right now is that of all the triples it can generate, only half of them are free of errors in their structure. This kind of errors occur when the pipeline is unable to find a valid lexicalization for the predicate (verb+preposition) or for the object, leaving these elements as Literals instead of as resources or properties.
 When we mention lexicalization we refer to the translation of text to URIs using tables for [properties][4] and [DBpedia classes][5].
