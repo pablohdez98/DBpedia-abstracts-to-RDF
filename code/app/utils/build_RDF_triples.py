@@ -45,8 +45,8 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
 
         if 'Resources' in decoded:
             for dec in decoded['Resources']:
-                term_URI_dict[dec['@surfaceForm'].lower()] = dec['@URI'].lower()
-                term_types_dict[dec['@URI'].lower()] = dec['@types'].lower().split(",")
+                term_URI_dict[dec['@surfaceForm'].lower()] = dec['@URI']
+                term_types_dict[dec['@URI']] = dec['@types'].lower().split(",")
 
             if dbpedia_only:
                 for key,value in term_types_dict.items():
