@@ -169,6 +169,7 @@ def get_best_candidate(subj, objct, candidates, term_types_dict, dbo_graph):
     scores = []
     for candidate in candidates:
         score = 0
+        candidate = candidate.replace("https://dbpedia.org", "http://dbpedia.org")
         candidate = URIRef(candidate)
         p_range = dbo_graph.value(subject=candidate, predicate=RDFS.range)
         p_domain = dbo_graph.value(subject=candidate, predicate=RDFS.domain)
