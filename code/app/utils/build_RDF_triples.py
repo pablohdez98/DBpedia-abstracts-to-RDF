@@ -114,6 +114,8 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
         if verb == "be" and prep == DEFAULT_VERB:
             # the case of the verb to be has to be treated different from the rest
             objct = get_dbo_class(objct, cla_lex_table)
+            if isinstance(objct, Literal):
+                continue
             o_candidates = [objct]
             pred = prop_lex_table[verb][prep]
         else:
