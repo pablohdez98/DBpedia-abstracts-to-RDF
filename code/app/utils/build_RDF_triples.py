@@ -1,4 +1,3 @@
-import pandas as pd
 import requests
 import json
 from rdflib import Graph, OWL, RDFS, RDF, URIRef, Literal
@@ -8,11 +7,12 @@ SPOTLIGHT_ONLINE_API = "https://api.dbpedia-spotlight.org/en/annotate"
 UNKOWN_VALUE = "UNK"
 DEFAULT_VERB = "DEF"
 
+
 ###############
 # Text to RDF #
 ###############
 
-def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0.3, support=0, dbpedia_only = True):
+def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0.3, support=0, dbpedia_only=True):
     """
     Function that query's the dbpedia spotlight api with the document text as input. Confidence level is the
     confidence score for disambiguation / linking and support is how prominent is this entity in Lucene Model, i.e. number of inlinks in Wikipedia.
@@ -40,7 +40,6 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
         print(f"error, status code{resp.status_code}")
         return None
     else:
-        
         decoded = json.loads(resp.text)
 
         if 'Resources' in decoded:
@@ -49,11 +48,12 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
                 term_types_dict[dec['@URI']] = dec['@types'].lower().split(",")
 
             if dbpedia_only:
-                for key,value in term_types_dict.items():
+                for key, value in term_types_dict.items():
                     value = [x.replace('dbpedia:', 'https://dbpedia.org/ontology/') for x in value if "dbpedia:" in x]
                     term_types_dict[key] = value
 
     return term_URI_dict, term_types_dict
+
 
 def load_dbo_graph(dbo_path):
     """ Return the ontology as a rdflib graph """
@@ -65,6 +65,7 @@ def load_dbo_graph(dbo_path):
         exit()
     return g
 
+
 def load_lexicalization_table(lex_path):
     """ Return the lexicalization table as a python dict of dics (verbs and prepositions, classes) """
     try:
@@ -74,6 +75,7 @@ def load_lexicalization_table(lex_path):
         print(f"Error while parsing the {lex_path} file, please check if the file is in a recheable folder and if the path is correct")
         exit()
     return lexicalization_table
+
 
 def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph):
     """
@@ -85,8 +87,9 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
         subj = ' '.join([x.text.lower() for x in subj])
         orginal_pred = ' '.join([x.text.lower() for x in triple.pred])
         objct = ' '.join([x.text.lower() for x in triple.objct])
-        
-        verb = [tkn for tkn in triple.pred if tkn.pos_ == "VERB" or (tkn.pos_ == "AUX" and tkn.dep_ not in ["aux","auxpass"])].pop()
+
+        verb = [tkn for tkn in triple.pred if
+                tkn.pos_ == "VERB" or (tkn.pos_ == "AUX" and tkn.dep_ not in ["aux", "auxpass"])].pop()
         verb = str(verb.lemma_)
         prep = [tkn.text for tkn in triple.pred if tkn.dep_ == "prep"]
         if prep:
@@ -105,7 +108,7 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
 
         # removing some subjects (not definitive)
         if len(keys) > 1:
-            candidate = [b for a,b in zip(keys, s_candidates) if " " in a]
+            candidate = [b for a, b in zip(keys, s_candidates) if " " in a]
             if candidate:
                 s_candidates = [candidate.pop()]
             else:
@@ -138,12 +141,11 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
                     pred = prop_lex_table[verb][DEFAULT_VERB]
             else:
                 pred = Literal(orginal_pred)
-            
-        # Build triple
 
+        # Build triple
         for s in s_candidates:
             for o in o_candidates:
-                if isinstance(pred,list):
+                if isinstance(pred, list):
                     # temporal fix, to be changed
                     # pred = pred.pop()
                     pred = get_best_candidate(s, o, pred, term_types_dict, dbo_graph)
@@ -154,17 +156,17 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
                     o = URIRef(o)
 
                 new_triple = triple.get_copy()
-                new_triple.set_rdf_triples(URIRef(s),pred,o)
+                new_triple.set_rdf_triples(URIRef(s), pred, o)
                 new_triples.append(new_triple)
 
     return new_triples
 
-def get_best_candidate(subj, objct, candidates, term_types_dict, dbo_graph):
 
+def get_best_candidate(subj, objct, candidates, term_types_dict, dbo_graph):
     # get list of classes of elems
 
     subj = [URIRef(x) for x in term_types_dict[subj]]
-    objct = [URIRef(x) for x in term_types_dict[objct]] 
+    objct = [URIRef(x) for x in term_types_dict[objct]]
 
     scores = []
     for candidate in candidates:
@@ -182,7 +184,8 @@ def get_best_candidate(subj, objct, candidates, term_types_dict, dbo_graph):
     best_score = max(scores)
     result = candidates[scores.index(best_score)]
     return URIRef(result)
-    
+
+
 def get_dbo_class(objct, cla_lex_table):
     """ Function that returns a dbo class given a text, for the to be case """
     objct = objct.lower()
@@ -202,6 +205,7 @@ def get_dbo_class(objct, cla_lex_table):
         else:
             return Literal(objct)
 
+
 def build_result_graph(triples):
     """ Builds a rdf graph with the result triples """
     g = Graph()
@@ -211,6 +215,7 @@ def build_result_graph(triples):
     result = g.serialize(format='ttl')
     return result
 
+
 def save_result_graph(triples, fpath):
     """ Builds a rdf graph with the result triples """
     g = Graph()
@@ -218,7 +223,7 @@ def save_result_graph(triples, fpath):
         triple.get_rdf_triple()
         g.add((triple.subj_rdf, triple.pred_rdf, triple.objct_rdf))
     try:
-        g.serialize(fpath,format='ttl')
+        g.serialize(fpath, format='ttl')
     except:
         print(f"Error while saving the graph in{fpath}")
         exit()
