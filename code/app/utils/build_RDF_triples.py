@@ -140,6 +140,7 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
                 else:
                     pred = prop_lex_table[verb][DEFAULT_VERB]
             else:
+                write_verb_with_no_uri(verb, prep)
                 pred = Literal(orginal_pred)
 
         # Build triple
@@ -160,6 +161,14 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
                 new_triples.append(new_triple)
 
     return new_triples
+
+
+def write_verb_with_no_uri(verb, prep):
+    with open('verbs_to_include.txt', 'r+') as f:
+        line = f"{verb} {prep}"
+        if line not in f.read():
+            f.write(f"{line}\n")
+    f.close()
 
 
 def get_best_candidate(subj, objct, candidates, term_types_dict, dbo_graph):
