@@ -234,6 +234,8 @@ def append_preps_verbs(triples):
                         new_triple.pred.append(prep)
                         new_triple.objct = new_obj
                         new_triples.append(new_triple)
+                    else:
+                        new_triples.append(triple)
             else:
                 new_triples.append(triple)
     return new_triples
