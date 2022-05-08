@@ -31,24 +31,24 @@
         "DEF": "https://dbpedia.org/ontology/owns"
     },
     "play": {
-        "in": ["http://dbpedia.org/ontology/playerInTeam", "http://dbpedia.org/ontology/league", "http://dbpedia.org/ontology/ground", "http://dbpedia.org/ontology/position", "http://dbpedia.org/ontology/tenant"],
+        "in": ["http://dbpedia.org/ontology/playerInTeam", "http://dbpedia.org/ontology/league", "http://dbpedia.org/ontology/ground", "http://dbpedia.org/ontology/position", "http://dbpedia.org/ontology/tenant", "http://dbpedia.org/ontology/starring"],
         "on": "UNK",
         "at": ["https://dbpedia.org/ontology/ground","https://dbpedia.org/ontology/location", "http://dbpedia.org/ontology/tenant"],
         "as": "http://dbpedia.org/ontology/position",
-        "for": ["http://dbpedia.org/ontology/playerInTeam", "https://dbpedia.org/ontology/formerTeam", "https://dbpedia.org/ontology/draftTeam", "https://dbpedia.org/ontology/team"],
+        "for": ["http://dbpedia.org/ontology/playerInTeam", "https://dbpedia.org/ontology/formerTeam", "https://dbpedia.org/ontology/draftTeam", "https://dbpedia.org/ontology/team", "http://dbpedia.org/ontology/college"],
         "from": "UNK",
         "to": "UNK",
-        "with": ["https://dbpedia.org/ontology/bandMember","https://dbpedia.org/ontology/associatedBand","https://dbpedia.org/ontology/team", "http://dbpedia.org/ontology/associatedMusicalArtist", "https://dbpedia.org/ontology/associate"],
+        "with": ["https://dbpedia.org/ontology/bandMember","https://dbpedia.org/ontology/associatedBand","https://dbpedia.org/ontology/team", "http://dbpedia.org/ontology/associatedMusicalArtist", "https://dbpedia.org/ontology/associate", "http://dbpedia.org/ontology/computingInput"],
         "during": "UNK",
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
         "against": "http://dbpedia.org/ontology/opponent",
         "by": ["http://dbpedia.org/ontology/writer","http://dbpedia.org/ontology/author","http://dbpedia.org/ontology/musicalArtist","http://dbpedia.org/ontology/artist"],
-        "DEF": ["https://dbpedia.org/ontology/genre", "http://dbpedia.org/ontology/sport", "https://dbpedia.org/ontology/sportDiscipline", "http://dbpedia.org/ontology/instrument"]
+        "DEF": ["https://dbpedia.org/ontology/genre", "http://dbpedia.org/ontology/sport", "https://dbpedia.org/ontology/sportDiscipline", "http://dbpedia.org/ontology/instrument", "http://dbpedia.org/ontology/programmeFormat", "http://dbpedia.org/ontology/team"]
     },
     "locate": {
-        "in": ["https://dbpedia.org/ontology/place", "https://dbpedia.org/ontology/location", "http://dbpedia.org/ontology/locatedInArea"],
+        "in": ["https://dbpedia.org/ontology/place", "http://dbpedia.org/ontology/address", "http://dbpedia.org/ontology/locationCity", "http://dbpedia.org/ontology/locationCountry", "http://dbpedia.org/ontology/country", "http://dbpedia.org/ontology/range", "http://dbpedia.org/ontology/city", "http://dbpedia.org/ontology/location", "http://dbpedia.org/ontology/locatedInArea", "http://dbpedia.org/ontology/region", "http://dbpedia.org/ontology/state", "http://dbpedia.org/ontology/county", "http://dbpedia.org/ontology/district", "http://dbpedia.org/ontology/province", "http://dbpedia.org/ontology/department", "http://dbpedia.org/ontology/arrondissement", "http://dbpedia.org/ontology/canton"],
         "on": ["https://dbpedia.org/ontology/place", "https://dbpedia.org/ontology/location", "http://dbpedia.org/ontology/locatedInArea"],
         "at": ["https://dbpedia.org/ontology/place", "https://dbpedia.org/ontology/location", "http://dbpedia.org/ontology/locatedInArea"],
         "as": "UNK",
@@ -60,10 +60,11 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
+        "near": "http://dbpedia.org/ontology/closestCity",
         "DEF": ["https://dbpedia.org/ontology/place", "https://dbpedia.org/ontology/location", "http://dbpedia.org/ontology/locatedInArea"]
     },
     "serve": {
-        "in": "http://dbpedia.org/ontology/regionServed",
+        "in": ["http://dbpedia.org/ontology/regionServed", "http://dbpedia.org/ontology/battle", "http://dbpedia.org/ontology/militaryBranch", "http://dbpedia.org/ontology/militaryUnit"],
         "on": "http://dbpedia.org/ontology/ingredient",
         "at": "UNK",
         "as": ["http://dbpedia.org/ontology/occupation", "https://dbpedia.org/ontology/position", "https://dbpedia.org/ontology/keyPerson"],
@@ -75,7 +76,8 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": ["http://dbpedia.org/ontology/militaryService", "https://dbpedia.org/ontology/service", "https://dbpedia.org/ontology/broadcastArea", "https://dbpedia.org/ontology/servingRailwayLine"]
+        "under": "http://dbpedia.org/ontology/president",
+        "DEF": ["http://dbpedia.org/ontology/militaryService", "https://dbpedia.org/ontology/service", "https://dbpedia.org/ontology/broadcastArea", "https://dbpedia.org/ontology/servingRailwayLine", "http://dbpedia.org/ontology/numberOfStudents"]
     },
     "include": {
         "in": "UNK",
@@ -105,7 +107,7 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/award"
     },
     "release": {
         "in": "http://dbpedia.org/ontology/releaseLocation",
@@ -120,7 +122,7 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/requirement"
     },
     "hold": {
         "in": "UNK",
@@ -138,7 +140,7 @@
         "DEF": "UNK"
     },
     "find": {
-        "in": "UNK",
+        "in": "http://dbpedia.org/ontology/foundationPlace",
         "on": "UNK",
         "at": "UNK",
         "as": "UNK",
@@ -150,7 +152,7 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": ["http://dbpedia.org/ontology/foundingPerson", "http://dbpedia.org/ontology/foundedBy"]
     },
     "compete": {
         "in": "UNK",
@@ -183,8 +185,8 @@
         "DEF": "UNK"
     },
     "bear": {
-        "in": "UNK",
-        "on": "UNK",
+        "in": ["http://dbpedia.org/ontology/birthYear", "http://dbpedia.org/ontology/birthPlace", "http://dbpedia.org/ontology/stateOfOrigin"],
+        "on": "http://dbpedia.org/ontology/birthDate",
         "at": "UNK",
         "as": "UNK",
         "for": "UNK",
@@ -201,7 +203,7 @@
         "in": "UNK",
         "on": "UNK",
         "at": "UNK",
-        "as": "www.w3.org/2002/07/owl#sameAs",
+        "as": ["www.w3.org/2002/07/owl#sameAs", "http://dbpedia.org/ontology/title"],
         "for": "http://dbpedia.org/ontology/knownFor",
         "from": "UNK",
         "to": "UNK",
@@ -285,11 +287,11 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/binomialAuthority"
     },
     "die": {
-        "in": "UNK",
-        "on": "UNK",
+        "in": ["http://dbpedia.org/ontology/deathYear", "http://dbpedia.org/ontology/deathPlace"],
+        "on": "http://dbpedia.org/ontology/deathDate",
         "at": "UNK",
         "as": "UNK",
         "for": "UNK",
@@ -303,7 +305,7 @@
         "DEF": "UNK"
     },
     "make": {
-        "in": "UNK",
+        "in": "http://dbpedia.org/ontology/origin",
         "on": "UNK",
         "at": "UNK",
         "as": "UNK",
@@ -313,9 +315,9 @@
         "with": "https://dbpedia.org/ontology/ingredient",
         "during": "UNK",
         "after": "UNK",
-        "of": "UNK",
+        "of": "http://dbpedia.org/ontology/structuralSystem",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": ["http://dbpedia.org/ontology/genre", "http://dbpedia.org/ontology/gross"]
     },
     "list": {
         "in": "UNK",
@@ -345,7 +347,7 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/award"
     },
     "publish": {
         "in": "UNK",
@@ -360,11 +362,11 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/publisher"
     },
     "found": {
-        "in": "https://dbpedia.org/ontology/foundationPlace",
-        "on": "UNK",
+        "in": ["http://dbpedia.org/ontology/foundingYear", "https://dbpedia.org/ontology/foundationPlace"],
+        "on": "http://dbpedia.org/ontology/foundingDate",
         "at": "UNK",
         "as": "UNK",
         "for": "UNK",
@@ -391,7 +393,7 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": ["http://dbpedia.org/ontology/starring", "http://dbpedia.org/ontology/guest"]
     },
     "refer": {
         "in": "UNK",
@@ -410,7 +412,7 @@
     },
     "work": {
         "in": "UNK",
-        "on": "UNK",
+        "on": "http://dbpedia.org/ontology/field",
         "at": "UNK",
         "as": ["http://dbpedia.org/ontology/occupation", "http://dbpedia.org/ontology/profession"],
         "for": "UNK",
@@ -439,7 +441,7 @@
         "DEF": "UNK"
     },
     "appear": {
-        "in": "UNK",
+        "in": "http://dbpedia.org/ontology/guest",
         "on": "UNK",
         "at": "UNK",
         "as": "UNK",
@@ -451,6 +453,338 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
+        "DEF": "UNK"
+    },
+    "belong": {
+        "to": ["http://dbpedia.org/ontology/kingdom", "http://dbpedia.org/ontology/phylum", "http://dbpedia.org/ontology/class", "http://dbpedia.org/ontology/genus", "http://dbpedia.org/ontology/family", "http://dbpedia.org/ontology/order", "http://dbpedia.org/ontology/division", "http://dbpedia.org/ontology/languageFamily"],
+        "DEF": "UNK"
+    },
+    "contain": {
+        "DEF": ["http://dbpedia.org/ontology/kingdom", "http://dbpedia.org/ontology/phylum", "http://dbpedia.org/ontology/class", "http://dbpedia.org/ontology/family", "http://dbpedia.org/ontology/order"]
+    },
+    "record": {
+        "in": "http://dbpedia.org/ontology/recordedIn",
+        "on": "http://dbpedia.org/ontology/recordDate",
+        "after": "http://dbpedia.org/ontology/subsequentWork",
+        "before": "http://dbpedia.org/ontology/previousWork",
+        "DEF": ["http://dbpedia.org/ontology/artist", "http://dbpedia.org/ontology/musicalBand", "http://dbpedia.org/ontology/musicalArtist"]
+    },
+    "write": {
+        "in": ["http://dbpedia.org/ontology/language", "http://dbpedia.org/ontology/programmingLanguage"],
+        "after": "http://dbpedia.org/ontology/subsequentWork",
+        "before": "http://dbpedia.org/ontology/previousWork",
+        "DEF": ["http://dbpedia.org/ontology/genre", "http://dbpedia.org/ontology/writer", "http://dbpedia.org/ontology/composer", "http://dbpedia.org/ontology/musicalBand", "http://dbpedia.org/ontology/musicalArtist"]
+    },
+    "distribute": {
+        "DEF": "http://dbpedia.org/ontology/distributor"
+    },
+    "create": {
+        "DEF": ["http://dbpedia.org/ontology/creator", "http://dbpedia.org/ontology/product", "http://dbpedia.org/ontology/designer"]
+    },
+    "compose": {
+        "DEF": "http://dbpedia.org/ontology/composer"
+    },
+    "star": {
+        "DEF": "http://dbpedia.org/ontology/starring"
+    },
+    "fuse": {
+        "into": "http://dbpedia.org/ontology/musicFusionGenre",
+        "DEF": "UNK"
+    },
+    "require": {
+        "DEF": "http://dbpedia.org/ontology/requirement"
+    },
+    "air": {
+        "on": ["http://dbpedia.org/ontology/channel", "http://dbpedia.org/ontology/network"],
+        "DEF": "http://dbpedia.org/ontology/completionDate"
+    },
+    "produce": {
+        "DEF": ["http://dbpedia.org/ontology/company", "http://dbpedia.org/ontology/manufacturer", "http://dbpedia.org/ontology/product"]
+    },
+    "award": {
+        "DEF": "http://dbpedia.org/ontology/award"
+    },
+    "review": {
+        "at": "http://dbpedia.org/ontology/review",
+        "DEF": "UNK"
+    },
+    "shoot": {
+        "DEF": "http://dbpedia.org/ontology/cinematographer"
+    },
+    "edit": {
+        "DEF": "http://dbpedia.org/ontology/editing"
+    },
+    "broadcast": {
+        "in": "http://dbpedia.org/ontology/broadcastArea",
+        "on": ["http://dbpedia.org/ontology/network", "http://dbpedia.org/ontology/frequency"],
+        "DEF": "UNK"
+    },
+    "operate": {
+        "in": "http://dbpedia.org/ontology/regionServed",
+        "DEF": ["http://dbpedia.org/ontology/broadcastNetwork", "http://dbpedia.org/ontology/operatedBy", "http://dbpedia.org/ontology/operator"]
+    },
+    "mean": {
+        "DEF": "http://dbpedia.org/ontology/callsignMeaning"
+    },
+    "stand": {
+        "for": "http://dbpedia.org/ontology/callsignMeaning",
+        "at": "http://dbpedia.org/ontology/elevation",
+        "DEF": "UNK"
+    },
+    "precede": {
+        "DEF": "http://dbpedia.org/ontology/precursor"
+    },
+    "develop": {
+        "from": "http://dbpedia.org/ontology/precursor",
+        "for": "http://dbpedia.org/ontology/computingPlatform",
+        "DEF": ["http://dbpedia.org/ontology/product", "http://dbpedia.org/ontology/developer", "http://dbpedia.org/ontology/designer"]
+    },
+    "design": {
+        "DEF": ["http://dbpedia.org/ontology/architect", "http://dbpedia.org/ontology/designer"]
+    },
+    "build": {
+        "DEF": ["http://dbpedia.org/ontology/architect", "http://dbpedia.org/ontology/company", "http://dbpedia.org/ontology/builder"]
+    },
+    "construct": {
+        "in": "http://dbpedia.org/ontology/yearOfConstruction",
+        "DEF": "http://dbpedia.org/ontology/company"
+    },
+    "fight": {
+        "in": "http://dbpedia.org/ontology/battle",
+        "DEF": "UNK"
+    },
+    "command": {
+        "during": "http://dbpedia.org/ontology/commander",
+        "DEF": "http://dbpedia.org/ontology/militaryCommand"
+    },
+    "subordinate": {
+        "to": "http://dbpedia.org/ontology/commandStructure",
+        "DEF": "UNK"
+    },
+    "base": {
+        "in": ["http://dbpedia.org/ontology/garrison", "http://dbpedia.org/ontology/locationCountry", "http://dbpedia.org/ontology/headquarter", "http://dbpedia.org/ontology/ground"],
+        "on": "http://dbpedia.org/ontology/relatedMeanOfTransportation",
+        "at": "http://dbpedia.org/ontology/garrison",
+        "DEF": "UNK"
+    },
+    "similar": {
+        "to": "http://dbpedia.org/ontology/similar",
+        "DEF": "UNK"
+    },
+    "abbreviate": {
+        "as": "http://dbpedia.org/ontology/abbreviation",
+        "DEF": "http://dbpedia.org/ontology/abbreviation"
+    },
+    "sublime": {
+        "at": "http://dbpedia.org/ontology/sublimationPoint",
+        "DEF": "UNK"
+    },
+    "melt": {
+        "at": "http://dbpedia.org/ontology/meltingPoint",
+        "DEF": "UNK"
+    },
+    "boil": {
+        "at": "http://dbpedia.org/ontology/boilingPoint",
+        "DEF": "UNK"
+    },
+    "speak": {
+        "in": "http://dbpedia.org/ontology/spokenIn",
+        "DEF": "UNK"
+    },
+    "employ": {
+        "DEF": "http://dbpedia.org/ontology/facultySize"
+    },
+    "manufacture": {
+        "DEF": "http://dbpedia.org/ontology/manufacturer"
+    },
+    "form": {
+        "on": "http://dbpedia.org/ontology/formationDate",
+        "in": "http://dbpedia.org/ontology/formationYear",
+        "DEF": "UNK"
+    },
+    "establish": {
+        "in": ["http://dbpedia.org/ontology/formationYear", "http://dbpedia.org/ontology/foundingYear"],
+        "on": ["http://dbpedia.org/ontology/formationDate", "http://dbpedia.org/ontology/foundingDate"],
+        "DEF": ["http://dbpedia.org/ontology/foundingPerson", "http://dbpedia.org/ontology/foundedBy"]
+    },
+    "active": {
+        "since": ["http://dbpedia.org/ontology/activeYearsStartDate", "http://dbpedia.org/ontology/activeYearsStartYear"],
+        "until": ["http://dbpedia.org/ontology/activeYearsEndDate", "http://dbpedia.org/ontology/activeYearsEndYear"],
+        "DEF": "UNK"
+    },
+    "affiliate": {
+        "with": "http://dbpedia.org/ontology/affiliation",
+        "to": "http://dbpedia.org/ontology/affiliation",
+        "DEF": "UNK"
+    },
+    "own": {
+        "DEF": ["http://dbpedia.org/ontology/owner", "http://dbpedia.org/ontology/owningCompany", "http://dbpedia.org/ontology/owningOrganization"]
+    },
+    "come": {
+        "from": ["http://dbpedia.org/ontology/stateOfOrigin", "http://dbpedia.org/ontology/hometown", "http://dbpedia.org/ontology/nationality"],
+        "DEF": "UNK"
+    },
+    "bury": {
+        "in": "http://dbpedia.org/ontology/restingPlace",
+        "DEF": "UNK"
+    },
+    "relate": {
+        "to": ["http://dbpedia.org/ontology/relative", "http://dbpedia.org/ontology/related"],
+        "DEF": "UNK"
+    },
+    "marry": {
+        "DEF": "http://dbpedia.org/ontology/spouse"
+    },
+    "influence": {
+        "DEF": ["http://dbpedia.org/ontology/influenced", "http://dbpedia.org/ontology/influencedBy"]
+    },
+    "succeed": {
+        "DEF": ["http://dbpedia.org/ontology/successor", "http://dbpedia.org/ontology/predecessor"]
+    },
+    "preceed": {
+        "DEF": ["http://dbpedia.org/ontology/successor", "http://dbpedia.org/ontology/predecessor"]
+    },
+    "live": {
+        "in": "http://dbpedia.org/ontology/populationPlace",
+        "DEF": "UNK"
+    },
+    "study": {
+        "at": ["http://dbpedia.org/ontology/university", "http://dbpedia.org/ontology/almaMater", "http://dbpedia.org/ontology/education"],
+        "DEF": "UNK"
+    },
+    "graduate": {
+        "from": ["http://dbpedia.org/ontology/almaMater", "http://dbpedia.org/ontology/college"],
+        "DEF": "UNK"
+    },
+    "attend": {
+        "DEF": ["http://dbpedia.org/ontology/education", "http://dbpedia.org/ontology/college"]
+    },
+    "go": {
+        "to": "http://dbpedia.org/ontology/education",
+        "DEF": "UNK"
+    },
+    "canonize": {
+        "in": "http://dbpedia.org/ontology/canonizedPlace",
+        "DEF": "UNK"
+    },
+    "call": {
+        "DEF": ["http://dbpedia.org/ontology/pseudonym", "http://dbpedia.org/ontology/alias", "http://dbpedia.org/ontology/commonName"]
+    },
+    "weigh": {
+        "DEF": "http://dbpedia.org/ontology/weight"
+    },
+    "situate": {
+        "in": ["http://dbpedia.org/ontology/region", "http://dbpedia.org/ontology/state", "http://dbpedia.org/ontology/county", "http://dbpedia.org/ontology/district", "http://dbpedia.org/ontology/province", "http://dbpedia.org/ontology/department", "http://dbpedia.org/ontology/arrondissement", "http://dbpedia.org/ontology/canton"],
+        "near": "http://dbpedia.org/ontology/closestCity",
+        "DEF": "UNK"
+    },
+    "close": {
+        "to": "http://dbpedia.org/ontology/nearestCity",
+        "DEF": "UNK"
+    },
+    "cross": {
+        "DEF": ["http://dbpedia.org/ontology/crosses", "http://dbpedia.org/ontology/routeJunction"]
+    },
+    "traverse": {
+        "DEF": "http://dbpedia.org/ontology/crosses"
+    },
+    "bridge": {
+        "DEF": "http://dbpedia.org/ontology/crosses"
+    },
+    "span": {
+        "DEF": "http://dbpedia.org/ontology/crosses"
+    },
+    "originate": {
+        "in": ["http://dbpedia.org/ontology/source", "http://dbpedia.org/ontology/sourceCountry"],
+        "DEF": "http://dbpedia.org/ontology/origin"
+    },
+    "flow": {
+        "into": ["http://dbpedia.org/ontology/riverMouth", "http://dbpedia.org/ontology/mouthMountain", "http://dbpedia.org/ontology/mouthPlace"],
+        "DEF": "UNK"
+    },
+    "run": {
+        "into": ["http://dbpedia.org/ontology/riverMouth", "http://dbpedia.org/ontology/mouthMountain", "http://dbpedia.org/ontology/mouthPlace"],
+        "under": "http://dbpedia.org/ontology/operatingSystem",
+        "DEF": "UNK"
+    },
+    "border": {
+        "DEF": "http://dbpedia.org/ontology/border"
+    },
+    "reside": {
+        "in": "http://dbpedia.org/ontology/residence",
+        "DEF": "UNK"
+    },
+    "rise": {
+        "to": ["http://dbpedia.org/ontology/elevation", "http://dbpedia.org/ontology/maximumElevation"],
+        "DEF": "UNK"
+    },
+    "open": {
+        "in": ["http://dbpedia.org/ontology/dateUse", "http://dbpedia.org/ontology/openingYear"],
+        "on": "http://dbpedia.org/ontology/openingDate",
+        "DEF": "UNK"
+    },
+    "complete": {
+        "on": ["http://dbpedia.org/ontology/completionDate", "http://dbpedia.org/ontology/dateCompleted"],
+        "DEF": "UNK"
+    },
+    "launch": {
+        "on": ["http://dbpedia.org/ontology/launchDate", "http://dbpedia.org/ontology/shipLaunch"],
+        "DEF": "UNK"
+    },
+    "race": {
+        "DEF": "http://dbpedia.org/ontology/team"
+    },
+    "manage": {
+        "DEF": ["http://dbpedia.org/ontology/team", "http://dbpedia.org/ontology/managerClub", "http://dbpedia.org/ontology/manager"]
+    },
+    "host": {
+        "DEF": "http://dbpedia.org/ontology/tenant"
+    },
+    "ride": {
+        "DEF": "http://dbpedia.org/ontology/raceHorse"
+    },
+    "accommodate": {
+        "DEF": "http://dbpedia.org/ontology/capacity"
+    },
+    "debut": {
+        "for": "http://dbpedia.org/ontology/debutTeam",
+        "DEF": "UNK"
+    },
+    "port": {
+        "to": "http://dbpedia.org/ontology/computingPlatform",
+        "DEF": "UNK"
+    },
+    "use": {
+        "DEF": "http://dbpedia.org/ontology/computingInput"
+    },
+    "license": {
+        "under": "http://dbpedia.org/ontology/license",
+        "DEF": "UNK"
+    },
+    "intersect": {
+        "with": "http://dbpedia.org/ontology/routeJunction",
+        "DEF": "UNK"
+    },
+    "begin": {
+        "at": "http://dbpedia.org/ontology/routeStart",
+        "in": "http://dbpedia.org/ontology/routeStart",
+        "DEF": "UNK"
+    },
+    "end": {
+        "at": "http://dbpedia.org/ontology/routeEnd",
+        "in": "http://dbpedia.org/ontology/routeEnd",
+        "DEF": "UNK"
+    },
+    "assemble": {
+        "in": "http://dbpedia.org/ontology/assembly",
+        "DEF": "UNK"
+    },
+    "commission": {
+        "on": "http://dbpedia.org/ontology/commissioningDate",
+        "DEF": "UNK"
+    },
+    "decommission": {
+        "on": "http://dbpedia.org/ontology/decommissioningDate",
         "DEF": "UNK"
     }
 }
