@@ -41,67 +41,141 @@ class Triple:
     def __str__(self):
         return f"{' '.join([x.text for x in self.subj])} {' '.join([x.text for x in self.pred])} {' '.join([x.text for x in self.objct])}"
 
-    
 ################################
 # Triples extraction functions #
 ################################
 
-def get_simple_triples(sentence):
-    """
-    Get the triples from each sentence in <subject, predicate, object> format.
-    Firs identify the root verb of the dependency tree and explore each subtrees.
-    If a subtree contains any kind of subject, all the subtree will be classified as subject, 
-    the same happens with the objects.
-    This function only works with simple sentences.
-    """
-    triples = []
+def get_simple_triples(nlp, sentence):
+    doc = nlp(sentence)
+
+    ## PREDICATE
+    # The verb forms analyzed are:
+    # aux (be)
+    # aux (did, will, have, be) verb
+    # aux (have) aux (be) verb
+    # verb to xcomp
+    # In the first three forms, the verb is the root of the sentence and represents the action
+    # In the last form, there are 2 verbs. We consider that xcomp represents the action (if there is
+    # a preposition it affects the xcomp)
+
+    patt_ROOT = [{"DEP": "ROOT"}]
+    patt_ROOT_xcomp = [{"DEP": "ROOT", "POS": "VERB"}, {"DEP": "aux"}, {"DEP": "xcomp"}]
+
+    matcher = Matcher(nlp.vocab)
+    matcher.add("patt_ROOT", [patt_ROOT])
+    matcher.add("patt_ROOT_xcomp", [patt_ROOT_xcomp])
+
+    matches = matcher(doc)
+    # Get only the last match (the longest one) and select the token representing the action
+    preds = None
+    if matches:
+        (match_id, start, end) = matches[-1]
+        string_id = nlp.vocab.strings[match_id]
+        if string_id == "patt_ROOT":
+            span = doc[start:end]
+        elif string_id == "patt_ROOT_xcomp":
+            span = doc[start + 2:end]
+        preds = span[0].lemma_  # save the infinitive form
+        preds = nlp(preds)
+        pos_of_verb = span[0].i  # save the token position
+
+    ## SUBJECT
+    # The subject matches tokens with dep = "nsubj" or "subjpass".
+    # When a subject is located, other subjects joined with conjunctions are searched for.
+    # To prevent the search for conjunctions outside the limits of the subject, the search
+    # is limited between the located subject and the verb of the predicate (pos_of_verb)
+
+    patt_SUBJS = [{"DEP": {"IN": ["nsubj", "nsubjpass"]}}]
+    matcher = Matcher(nlp.vocab)
+    matcher.add("patt_SUBJS", [patt_SUBJS])
+
     subjs = []
+    matches = matcher(doc)
+    for match_id, start, end in matches:
+        #        span_subj = doc[start:end][0]   # The matched span
+        #        span = get_sentence_subtree_from_token(span_subj)
+        #        subjs.append(span)
+
+        span_subj = doc[start:end][0]  # The matched span
+        subjs.append(get_sentence_subtree_from_token(span_subj, ["cc", "conj"], nlp))
+        rest_of_span = doc[end:pos_of_verb]
+        conjs = [t for t in rest_of_span if t.dep_ == "conj"]
+        for c in conjs:
+            s = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], nlp)
+            subjs.append(s)
+
+    ## OBJECT
+    # Here we use dependency rules, since we cannot guarantee that tokens included in the pattern
+    # are correlative in the sentence
+
+    patt_attr = [
+        {
+            "RIGHT_ID": "verb",
+            "RIGHT_ATTRS": {"LEMMA": "be"}
+        },
+        {
+            "LEFT_ID": "verb",
+            "REL_OP": ">", "RIGHT_ID": "attr",
+            "RIGHT_ATTRS": {"DEP": "attr"}
+        }
+    ]
+    patt_advmod_obj = [
+        {
+            "RIGHT_ID": "verb",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["ROOT", "xcomp"]}}
+        },
+        {
+            "LEFT_ID": "verb",
+            "REL_OP": ">",
+            "RIGHT_ID": "advmod",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["advmod", "pobj", "dobj"]}}
+        }
+    ]
+    patt_prep_obj = [
+        {
+            "RIGHT_ID": "verb",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["ROOT", "xcomp"]}}
+        },
+        {
+            "LEFT_ID": "verb",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep",
+            "RIGHT_ATTRS": {"DEP": "prep"}
+        },
+        {
+            "LEFT_ID": "prep",
+            "REL_OP": ">", "RIGHT_ID": "pobj",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["pobj", "dobj"]}}
+        }
+    ]
+
+    dep_matcher = DependencyMatcher(nlp.vocab)
+    dep_matcher.add("patt_attr", [patt_attr])
+    dep_matcher.add("patt_advmod_obj", [patt_advmod_obj])
+    dep_matcher.add("patt_prep_obj", [patt_prep_obj])
+    dep_matches = dep_matcher(doc)
+
     objs = []
-    preds = []
-    root_token = sentence.root
-    preds.append(root_token)
-    for children in root_token.children:
-        if(children.dep_ in ["aux","auxpass"]):
-            # children.pos == AUX
-            #preds.insert(0,children)
-            preds.append(children)
-        elif(children.dep_ == "neg"):
-            #negative
-            #preds.insert(1,children)
-            preds.append(children)
-        elif(children.dep_ == "xcomp"):
-            # consider the prepositions between both verbs (was thought to result)
-            xcomp_lefts = [tkn for tkn in children.lefts]
-            preds.extend(xcomp_lefts)
-            preds.append(children)
-        elif children.dep_.find("mod"):
-            # advmod
-            pass
-            #preds.append(children)
-        
-        preds.sort(key=lambda token: token.i)
-        # retrieve subtrees
-        is_subj = False
-        is_obj = False
-        temp_elem = []
-        for token_children in children.subtree:
-            if token_children in sentence:
-                if token_children.dep_.find("subj") == True:
-                    is_subj = True
-                elif token_children.dep_.find("obj") == True:
-                    is_obj = True
-                elif token_children.dep_ == "attr":
-                    is_obj = True
-                if token_children not in preds:
-                    temp_elem.append(token_children)
-        if is_subj:
-            subjs.append(temp_elem)
-        elif is_obj:
-            objs.append(temp_elem)
+    # Iterate over the matches and print the span text
+    for match_id, token_id in dep_matches:
+        if not check_ascending_order_token_id(token_id):  # verify tokens matched are at right side from verb
+            continue
+        string_id = nlp.vocab.strings[match_id]  # Get string representation
+        if string_id in ["patt_attr", "patt_advmod_obj", "patt_prep_obj"]:
+            span = get_sentence_subtree_from_token(doc[token_id[1]])
+            objs.append(get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], nlp))
+            conjs = [t for t in span if (t.dep_ == "conj") and (t.i > token_id[1])]
+            for c in conjs:
+                objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], nlp))
+
     # Build triples
-    for s in subjs:
-        for o in objs:
-            triples.append(Triple(s,preds.copy(),o, sentence))
+    triples = []
+    with open('results2.txt', 'a') as f:
+        for s in subjs:
+            for o in objs:
+                new_triple = Triple(s, preds, o, sentence)
+                f.write(f"--> {s} | {preds} | {o}\n")
+                triples.append(new_triple)
     return triples
 
 
