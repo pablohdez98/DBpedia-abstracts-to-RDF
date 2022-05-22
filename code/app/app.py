@@ -31,7 +31,7 @@ def pipeline(nlp, raw_text, dbo_graph ,prop_lex_table, cla_lex_table, use_comp_s
     #d1,d2 = get_dates_first_sentence(document)
     doc = nlp(raw_text)
     sentences = pps.get_sentences(doc)
-    triples = te.get_all_triples(sentences, use_comp_sents)
+    triples = te.get_all_triples(nlp, sentences, use_comp_sents)
     triples = pt.fix_xcomp_conj(triples)
     # triples = fix_aux_verbs(triples)
     triples = pt.append_preps_verbs(triples)
