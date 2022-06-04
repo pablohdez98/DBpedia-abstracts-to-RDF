@@ -1,3 +1,4 @@
 /.idea
 /code/app/output/*
 Dockerfile(image creation)
+/log_files

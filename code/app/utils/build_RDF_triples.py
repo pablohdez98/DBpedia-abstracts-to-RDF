@@ -1,16 +1,17 @@
 import requests
 import json
-from rdflib import Graph, OWL, RDFS, RDF, URIRef, Literal
+import time
+from rdflib import Graph, RDFS, URIRef, Literal
+from utils.log_generator import triple_with_no_uri_log
 
-SPOTLIGHT_LOCAL_URL = "http://localhost:2222/rest/annotate/"
 SPOTLIGHT_ONLINE_API = "https://api.dbpedia-spotlight.org/en/annotate"
 UNKOWN_VALUE = "UNK"
 DEFAULT_VERB = "DEF"
 
-
 ###############
 # Text to RDF #
 ###############
+
 
 def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0.3, support=0, dbpedia_only=True):
     """
@@ -23,18 +24,10 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
     term_URI_dict = {}
     term_types_dict = {}
     try:
-        if "localhost" in service_url:
-            resp = requests.post(service_url, data=parameters, headers=headerinfo)
-        else:
-            resp = requests.get(service_url, params=parameters, headers=headerinfo)
+        resp = requests.get(service_url, params=parameters, headers=headerinfo)
     except:
-        try:
-            print("Error at dbpedia spotlight post/get, trying with the api one")
-            service_url = SPOTLIGHT_ONLINE_API
-            resp = requests.get(service_url, params=parameters, headers=headerinfo)
-        except:
-            print("Error at dbpedia spotlight post/get")
-            return None
+        print("Error at dbpedia spotlight get")
+        return None
 
     if resp.status_code != 200:
         print(f"error, status code{resp.status_code}")
@@ -44,12 +37,12 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
 
         if 'Resources' in decoded:
             for dec in decoded['Resources']:
-                term_URI_dict[dec['@surfaceForm'].lower()] = dec['@URI']
-                term_types_dict[dec['@URI']] = dec['@types'].lower().split(",")
+                term_URI_dict[dec['@surfaceForm']] = dec['@URI']
+                term_types_dict[dec['@URI']] = dec['@types'].split(",")
 
             if dbpedia_only:
                 for key, value in term_types_dict.items():
-                    value = [x.replace('dbpedia:', 'https://dbpedia.org/ontology/') for x in value if "dbpedia:" in x]
+                    value = [x.replace('dbpedia:', 'https://dbpedia.org/ontology/') for x in value if "DBpedia:" in x]
                     term_types_dict[key] = value
 
     return term_URI_dict, term_types_dict
@@ -61,20 +54,10 @@ def load_dbo_graph(dbo_path):
         g = Graph()
         g.parse(dbo_path)
     except:
-        print(f"Error while parsing the {dbo_path} file (dbpedia ontology file), please check if the file is in a recheable folder and if the path is correct")
+        print(f"Error while parsing the {dbo_path} file (dbpedia ontology file), please check if the file is in a "
+              f"recheable folder and if the path is correct")
         exit()
     return g
-
-
-def load_lexicalization_table(lex_path):
-    """ Return the lexicalization table as a python dict of dics (verbs and prepositions, classes) """
-    try:
-        with open(lex_path) as json_file:
-            lexicalization_table = json.load(json_file)
-    except:
-        print(f"Error while parsing the {lex_path} file, please check if the file is in a recheable folder and if the path is correct")
-        exit()
-    return lexicalization_table
 
 
 def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph):
@@ -82,159 +65,149 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
     Maybe this function should be inside the triple class
     """
     new_triples = []
-    for triple in triples:
-        subj = [x for x in triple.subj if x.dep_ != "det"]
-        subj = ' '.join([x.text.lower() for x in subj])
-        orginal_pred = ' '.join([x.text.lower() for x in triple.pred])
-        objct = ' '.join([x.text.lower() for x in triple.objct])
+    timestr = time.strftime("%Y%m%d-%H%M")
 
-        verb = [tkn for tkn in triple.pred if
-                tkn.pos_ == "VERB" or (tkn.pos_ == "AUX" and tkn.dep_ not in ["aux", "auxpass"])].pop()
-        verb = str(verb.lemma_)
-        prep = [tkn.text for tkn in triple.pred if tkn.dep_ == "prep"]
-        if prep:
-            prep = prep.pop()
-            prep = prep.lower()
+    for triple in triples:
+        subj_text = [x for x in triple.subj if x.dep_ != "det"]
+        subj_text = ' '.join([x.text.lower() for x in subj_text])
+        obj_text = ' '.join([x.text.lower() for x in triple.objct])
+        verb = triple.pred[0].lemma_
+        if len(triple.pred) == 2:  # Extract preposition from pred
+            prep = triple.pred[1].text.lower()
         else:
             prep = DEFAULT_VERB
 
-        # NER the subject
-        s_candidates = []
-        keys = []
-        for key in term_URI_dict.keys():
-            if key in subj.lower():
-                s_candidates.append(term_URI_dict[key])
-                keys.append(key)
-
-        # removing some subjects (not definitive)
-        if len(keys) > 1:
-            candidate = [b for a, b in zip(keys, s_candidates) if " " in a]
-            if candidate:
-                s_candidates = [candidate.pop()]
+        # URI for the subject
+        # We select the entities included in the subject
+        entity_selected_subj = []
+        for entity in term_URI_dict.keys():
+            if entity.lower() in subj_text:
+                entity_selected_subj.append(entity)
+        # If more than one candidate, we take the longest one
+        if entity_selected_subj:
+            if len(entity_selected_subj) > 1:
+                entity_name = max(entity_selected_subj, key=len)
             else:
-                s_candidates = [s_candidates.pop()]
+                entity_name = entity_selected_subj[0]
+        else:
+            continue
+        subject_URI = term_URI_dict[entity_name]
+        subject_RDF = URIRef(subject_URI)
 
         if verb == "be" and prep == DEFAULT_VERB:
-            # the case of the verb to be has to be treated different from the rest
-            objct = get_dbo_class(objct, cla_lex_table)
-            if isinstance(objct, Literal):
+            pred_URI = prop_lex_table[verb][prep]
+            object_URI = get_dbo_class(obj_text, cla_lex_table)  # returns a unique URIRef or Literal
+            if isinstance(object_URI, Literal):
+                triple_with_no_uri_log(timestr, triple, obj_text)  # save object Literal in log file
                 continue
-            o_candidates = [objct]
-            pred = prop_lex_table[verb][prep]
+            else:
+                object_RDF = URIRef(object_URI)
         else:
-            # NER the object
-            o_candidates = []
-            for key in term_URI_dict.keys():
-                if key in objct.lower():
-                    if key != "the":
-                        o_candidates.append(term_URI_dict[key])
+            # URI for the object
+            entity_selected_obj = []
+            for entity in term_URI_dict.keys():
+                if entity.lower() in obj_text:
+                    if entity.lower() != "the":
+                        entity_selected_obj.append(entity)
 
-            # Lexicalization predicate        
+            if entity_selected_obj:
+                if len(entity_selected_obj) > 1:
+                    entity_name = max(entity_selected_obj, key=len)
+                else:
+                    entity_name = entity_selected_obj[0]
+
+                object_URI = term_URI_dict[entity_name]
+                object_RDF = URIRef(object_URI)
+            else:
+                object_URI = None
+                object_RDF = Literal(obj_text)
+
+            # Lexicalization predicate
             if verb in prop_lex_table:
                 if prep in prop_lex_table[verb]:
                     if prop_lex_table[verb][prep] == UNKOWN_VALUE:
-                        pred = prop_lex_table[verb][DEFAULT_VERB]
+                        pred_URI = prop_lex_table[verb][DEFAULT_VERB]
                     else:
-                        pred = prop_lex_table[verb][prep]
-
+                        pred_URI = prop_lex_table[verb][prep]
                 else:
-                    pred = prop_lex_table[verb][DEFAULT_VERB]
+                    pred_URI = prop_lex_table[verb][DEFAULT_VERB]
             else:
-                write_verb_with_no_uri(verb, prep)
-                pred = Literal(orginal_pred)
+                pred_URI = Literal(verb)
 
-        # Build triple
-        for s in s_candidates:
-            for o in o_candidates:
-                if isinstance(pred, list):
-                    # temporal fix, to be changed
-                    # pred = pred.pop()
-                    pred = get_best_candidate(s, o, pred, term_types_dict, dbo_graph)
-                else:
-                    if not isinstance(pred, Literal):
-                        pred = URIRef(pred)
-                if not isinstance(o, Literal):
-                    o = URIRef(o)
+            if (pred_URI == UNKOWN_VALUE) | (isinstance(pred_URI, Literal)):
+                # save object Literal in log file
+                triple_with_no_uri_log(timestr, triple, verb)
+                continue
 
-                new_triple = triple.get_copy()
-                new_triple.set_rdf_triples(URIRef(s), pred, o)
-                new_triples.append(new_triple)
+        # Select the appropriate URI for the pred
+        if isinstance(pred_URI, list) and object_URI:
+            pred_URI = get_best_candidate(subject_URI, object_URI, pred_URI, term_types_dict, dbo_graph)
+        else:
+            if not isinstance(pred_URI, Literal):
+                pred_URI = URIRef(pred_URI)
 
+        # Build triple. RDF triples are made up by URI references or Literals
+        new_triple = triple.get_copy()
+        new_triple.set_rdf_triples(subject_RDF, pred_URI, object_RDF)
+        new_triples.append(new_triple)
     return new_triples
 
 
-def write_verb_with_no_uri(verb, prep):
-    with open('verbs_to_include.txt', 'r+') as f:
-        line = f"{verb} {prep}"
-        if line not in f.read():
-            f.write(f"{line}\n")
-    f.close()
+def get_best_candidate(subj, objct, preds_uri, term_types_dict, dbo_graph):
 
-
-def get_best_candidate(subj, objct, candidates, term_types_dict, dbo_graph):
-    # get list of classes of elems
-
-    subj = [URIRef(x) for x in term_types_dict[subj]]
-    objct = [URIRef(x) for x in term_types_dict[objct]]
+    # extract path from the URI, to avoid problems when using different schemas (http or https)
+    subj_path = [x.partition("//")[2] for x in term_types_dict[subj]]
+    objt_path = [x.partition("//")[2] for x in term_types_dict[objct]]
 
     scores = []
-    for candidate in candidates:
+    for uri in preds_uri:
         score = 0
-        candidate = candidate.replace("https://dbpedia.org", "http://dbpedia.org")
-        candidate = URIRef(candidate)
-        p_range = dbo_graph.value(subject=candidate, predicate=RDFS.range)
-        p_domain = dbo_graph.value(subject=candidate, predicate=RDFS.domain)
-        if p_domain in subj:
-            score = score + 1
-        elif p_range in objct:
-            score = score + 1
+        uri = uri.replace("https:", "http:")  # URIs in ontology follow schema http
+        uri = URIRef(uri)
+        # get range and domain from rdf graph
+        pred_range = dbo_graph.value(subject=uri, predicate=RDFS.range)
+        pred_domain = dbo_graph.value(subject=uri, predicate=RDFS.domain)
+
+        if pred_domain:
+            pred_domain_path = pred_domain.partition("//")[2]
+            # rdfs:domain states the classes that a subject with this property must match (at least one)
+            if pred_domain_path in subj_path:
+                score = score + 1
+        if pred_range:
+            pred_range_path = pred_range.partition("//")[2]
+            # rdfs:range states the classes that an object with this predicate must match (at least one)
+            if pred_range_path in objt_path:
+                score = score + 1
         scores.append(score)
 
     best_score = max(scores)
-    result = candidates[scores.index(best_score)]
-    return URIRef(result)
+    return URIRef(preds_uri[scores.index(best_score)])
 
 
 def get_dbo_class(objct, cla_lex_table):
     """ Function that returns a dbo class given a text, for the to be case """
-    objct = objct.lower()
     if objct in cla_lex_table.keys():
-        return URIRef(cla_lex_table[objct])
+        return cla_lex_table[objct]
     else:
-        candidates = []
         temp_obj = objct.split(" ")
-        for k in cla_lex_table.keys():
-            if k in temp_obj:
-                candidates.append(k)
+        candidates = [k for k in cla_lex_table.keys() if k in temp_obj]
         # strategy to select best candidate
         if candidates:
             key = candidates.pop()
             result = cla_lex_table[key]
-            return URIRef(result)
+            return result
         else:
             return Literal(objct)
 
 
-def build_result_graph(triples):
+def build_save_result_graph(triples, fpath):
     """ Builds a rdf graph with the result triples """
     g = Graph()
     for triple in triples:
-        triple.get_rdf_triple()
-        g.add((triple.subj_rdf, triple.pred_rdf, triple.objct_rdf))
-    result = g.serialize(format='ttl')
-    return result
-
-
-def save_result_graph(triples, fpath):
-    """ Builds a rdf graph with the result triples """
-    g = Graph()
-    for triple in triples:
-        triple.get_rdf_triple()
         g.add((triple.subj_rdf, triple.pred_rdf, triple.objct_rdf))
     try:
         g.serialize(fpath, format='ttl')
     except:
         print(f"Error while saving the graph in{fpath}")
         exit()
-    result = g.serialize(format='ttl')
-    return result
+    return g
