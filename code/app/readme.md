@@ -12,9 +12,7 @@ optional arguments:
   -h, --help displays this help message and exits.
   --input_text INPUT_TEXT
                         Insert abstract text or any other type to generate RDF based on the input
-  --all_sentences Use all sentences of the abstract or only the simplest sentences (False recommended)
   --text_triples Print the simplified statements of the triples that have been generated. This is useful for understanding how the pipeline processed the input
-  --no_literals Discards all triples containing a literal. This occurs when the pipeline cannot find any lexicalization for the predicate or the object
   --save_debug Prints the text triples and the extracted RDF triples for each sentence.
 ```
 
