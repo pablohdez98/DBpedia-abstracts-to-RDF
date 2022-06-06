@@ -77,11 +77,11 @@ def get_simple_triples(nlp, sentence):
     matches = matcher(doc)
     for match_id, start, end in matches:
         span_subj = doc[start:end][0]  # The matched span
-        subjs.append(get_sentence_subtree_from_token(span_subj, ["cc", "conj"]))
+        subjs.append(get_sentence_subtree_from_token(span_subj, ["cc", "conj"], inner=False))
         rest_of_span = doc[end:pos_of_verb]
         conjs = [t for t in rest_of_span if t.dep_ == "conj"]
         for c in conjs:
-            s = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"])
+            s = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False)
             subjs.append(s)
 
     ## OBJECT
@@ -123,52 +123,55 @@ def get_simple_triples(nlp, sentence):
         if string_id in ["patt_attr", "patt_advmod_obj"]:
             conjs = doc[token_id[1]].conjuncts  # coordinated tokens, not including the token itself
             if conjs:
-                objs.append(get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"]))
+                objs.append(get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], inner=False))
                 for c in conjs:
-                    objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"]))
+                    objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False))
             else:
-                objs.append(get_sentence_subtree_from_token(doc[token_id[1]]))
+                objs.append(get_sentence_subtree_from_token(doc[token_id[1]], inner=False))
 
         if string_id == "patt_be_acomp":
             conjs = doc[token_id[1]].conjuncts  # coordinated tokens, not including the token itself
             if conjs:
-                objs.append(get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"]))
+                objs.append(get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], inner=False))
                 for c in conjs:
-                    objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"]))
+                    objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False))
             else:
-                objs.append(get_sentence_subtree_from_token(doc[token_id[1]]))
+                objs.append(get_sentence_subtree_from_token(doc[token_id[1]], inner=False))
 
         if string_id == "patt_prep_obj":
             conjs = doc[token_id[1]].conjuncts  # coordinated tokens with preposition (not including token itself)
             if conjs:
                 # several prep + objects
-                prep_object = get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"])  # get first (prep + object)
+                prep_object = get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], inner=False)  # get first (prep + object)
                 simpler_objs = split_conjunctions_obj(prep_object, doc[token_id[1]], doc[token_id[2]])  # coordinated tokens with the object
                 objs.extend(simpler_objs)
                 for c in conjs:
-                    prep_object = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"])  # get next (prep + object)
+                    prep_object = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False)  # get next (prep + object)
                     inside_object = [tk for tk in prep_object if (tk.dep_.find("obj") != -1)]
-                    simpler_objs = split_conjunctions_obj(prep_object, doc[c.i], inside_object[-1])  # coordinated tokens with the object
+                    simpler_objs = split_conjunctions_obj(prep_object, doc[c.i],
+                                                          inside_object[-1])  # coordinated tokens with the object
                     objs.extend(simpler_objs)
             else:
-                prep_object = get_sentence_subtree_from_token(doc[token_id[1]])  # there is only one object
-                simpler_objs = split_conjunctions_obj(prep_object, doc[token_id[1]], doc[token_id[2]])  # coordinated tokens within the object
+                prep_object = get_sentence_subtree_from_token(doc[token_id[1]], inner=False)  # there is only one object
+                simpler_objs = split_conjunctions_obj(prep_object, doc[token_id[1]],
+                                                      doc[token_id[2]])  # coordinated tokens within the object
                 objs.extend(simpler_objs)
 
         if string_id == "patt_agent_obj":
             conjs = doc[token_id[1]].conjuncts  # coordinated tokens with agent (not including token itself)
             if conjs:
                 # several agent + object
-                agent_object = get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"])  # get first (agent + object)
-                simpler_objs = split_conjunctions_obj(agent_object, doc[token_id[1]], doc[token_id[2]])  # coordinated tokens with the object
+                agent_object = get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], inner=False)  # get first (agent + object)
+                simpler_objs = split_conjunctions_obj(agent_object, doc[token_id[1]],
+                                                      doc[token_id[2]])  # coordinated tokens with the object
                 objs.extend(simpler_objs)
                 for c in conjs:
-                    agent_object = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"])  # get next (agent + object)
+                    agent_object = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False)  # get next (agent + object)
                     inside_object = [tk for tk in agent_object if (tk.dep_.find("obj") != -1)]
                     simpler_objs = split_conjunctions_obj(agent_object, doc[c.i], inside_object[-1])  # coordinated tokens with the object
                     objs.extend(simpler_objs)
             else:
-                agent_object = get_sentence_subtree_from_token(doc[token_id[1]])  # there is only one object
+                agent_object = get_sentence_subtree_from_token(doc[token_id[1]], inner=False)  # there is only one object
                 simpler_objs = split_conjunctions_obj(agent_object, doc[token_id[1]], doc[token_id[2]])  # coordinated tokens within the object
                 objs.extend(simpler_objs)
 
@@ -177,7 +180,7 @@ def get_simple_triples(nlp, sentence):
                 continue
             conjs = doc[token_id[0]].conjuncts  # coordinated tokens, not including the token itself
             for c in conjs:
-                objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"]))
+                objs.append(get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False))
 
     # Build triples
     triples = []
@@ -209,25 +212,25 @@ def simplify_sentence(nlp, sentence):
         {
             "RIGHT_ID": "relcl",
             "RIGHT_ATTRS": {"DEP": "relcl"}
-         },
+        },
         {
             "LEFT_ID": "relcl",
             "REL_OP": ">>",
             "RIGHT_ID": "pron",
             "RIGHT_ATTRS": {"LOWER": {"IN": ["who", "which"]}}
-         },
+        },
         {
             "LEFT_ID": "relcl",
             "REL_OP": "<<",
             "RIGHT_ID": "attr",
             "RIGHT_ATTRS": {"DEP": "attr"}
-         },
+        },
         {
             "LEFT_ID": "attr",
             "REL_OP": ">>",
             "RIGHT_ID": "suj",
             "RIGHT_ATTRS": {"DEP": {"IN": ["nsubj", "nsubjpass"]}}
-         }
+        }
     ]
     patt_relcl_obj = [
         {
@@ -275,8 +278,8 @@ def simplify_sentence(nlp, sentence):
     string_id = nlp.vocab.strings[match_id]
     span = doc[token_ids[0]]
 
-    if sentence[token_ids[1]-1].dep_ == 'punct':
-        new_sentence = ' '.join([sentence[0:token_ids[1]-1].text, sentence[token_ids[1]:-1].text])
+    if sentence[token_ids[1] - 1].dep_ == 'punct':
+        new_sentence = ' '.join([sentence[0:token_ids[1] - 1].text, sentence[token_ids[1]:-1].text])
         sentence = nlp(new_sentence)[0:-1]
     main_sentence = get_sentence_subtree_from_token(sentence.root, ["relcl"], nlp)
     second_sentence = get_sentence_subtree_from_token(span)
@@ -285,18 +288,21 @@ def simplify_sentence(nlp, sentence):
     if string_id == "patt_relcl_attr":
         subj = [tkn for tkn in main_sentence if "subj" in tkn.dep_]
         subj = get_sentence_subtree_from_token(subj[0])
-        [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in second_sentence]
+        [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in
+         second_sentence]
     elif string_id == "patt_relcl_obj":
         obj = doc[token_ids[2]]
         # obj = doc[token_ids[0]].head
         obj = get_sentence_subtree_from_token(obj, ["relcl"], nlp)
-        [new_sentence.append(obj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in second_sentence]
+        [new_sentence.append(obj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in
+         second_sentence]
     elif string_id == "patt_generic_relcl":
         pron = doc[token_ids[1]].text
         if pron in ["who", "which"]:
             subj = [tkn for tkn in main_sentence if "subj" in tkn.dep_]
             subj = get_sentence_subtree_from_token(subj[0])
-            [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in second_sentence]
+            [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in
+             second_sentence]
         elif pron in ["where"]:
             [new_sentence.append(tkn) for tkn in second_sentence if tkn.i != doc[token_ids[1]].i]  # remove 'where'
     second_sentence = ''.join([t.text_with_ws for t in new_sentence])
@@ -305,28 +311,40 @@ def simplify_sentence(nlp, sentence):
     return subsentences
 
 
-def get_sentence_subtree_from_token(token, stop_condition=None, nlp=None):
+def get_sentence_subtree_from_token(token, stop_condition=None, nlp=None, inner=True):
     if stop_condition is None:
         stop_condition = []
     sent = []
     for child in token.subtree:
-        if child.dep_ in stop_condition and child != token:
-            continue
+        if inner:
+            if child.dep_ in stop_condition and child != token:
+                continue
+        else:
+            if (child.dep_ in stop_condition) and (child.i > token.i):
+                break
         ancestors = [t for t in child.ancestors if t in token.subtree]
         if any([t for t in ancestors if t.dep_ in stop_condition and t != token]):
-            continue
+            if inner:
+                continue
+            else:
+                break
         sent.append(child)
     sent.sort(key=lambda tkn: tkn.i)
-    if len(sent) == (sent[-1].i+1 - sent[0].i):
+    if inner and len(sent) == (sent[-1].i + 1 - sent[0].i):
         try:
             return sent[0].doc[sent[0].i: sent[-1].i + 1]
         except:
             return []
-    if nlp:
+    elif inner and nlp:
         result = ''.join([tkn.text_with_ws for tkn in sent])
         return nlp(result)
-    else:
-        return []
+    elif not inner:
+        try:
+            result = sent[0].doc[sent[0].i: sent[-1].i + 1]
+            return result[:-1] if result[-1].is_punct else result
+        except:
+            return []
+    return []
 
 
 def check_ascending_order_token_id(token_id):

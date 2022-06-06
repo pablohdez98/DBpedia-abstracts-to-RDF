@@ -120,7 +120,7 @@ def split_amod_conjunctions_obj(nlp, triples):
             elif string_id == "patt_obj_conj":
                 conjs = doc[token_id[1]].conjuncts  # coordinated "obj" tokens, not including the token itself
 
-                full_object = te.get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"])  # obj with "compound" and "amod" tokens
+                full_object = te.get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], inner=False)  # obj with "compound" and "amod" tokens
 
                 shared_text_left = doc[:full_object[0].i]  # span previous to the first "obj"
                 shared_text_right = doc[(conjs[-1].i + 1):]  # span after last "obj"
@@ -132,7 +132,7 @@ def split_amod_conjunctions_obj(nlp, triples):
 
                 for c in conjs:
                     new = [token for token in shared_text_left]
-                    full_object = te.get_sentence_subtree_from_token(c, ["cc", "conj"])  # next obj with "compound" and "amod" tokens
+                    full_object = te.get_sentence_subtree_from_token(c, ["cc", "conj"], inner=False)  # next obj with "compound" and "amod" tokens
                     new.extend([token for token in full_object if not token.is_punct])
                     new.extend([token for token in shared_text_right])
                     simpler_objects.append(new)
