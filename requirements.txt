@@ -13,5 +13,5 @@ spacy-alignments==0.8.3
 spacy-legacy==3.0.8
 spacy-transformers==1.0.6
 coreferee==1.2.0
-streamlit==1.9.0
+streamlit==1.10.0
 base58==2.1.0
