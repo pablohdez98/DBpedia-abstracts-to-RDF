@@ -1,148 +1,230 @@
-from rdflib.term import URIRef
-import streamlit as st
-import pandas as pd
 import base64
+import glob
+import json
+import os
 import time
 
-import utils.preprocess_sentences as pps
-import utils.triples_extraction as te
-import utils.process_triples as pt
-import utils.build_RDF_triples as brt
-
+import pandas as pd
 import spacy
 import coreferee
+import streamlit as st
+import utils.update_ontology as uo
+import validators
+from rdflib.term import URIRef
+
+import utils.build_RDF_triples as brt
+import utils.lookup_tables_services as lts
+import utils.preprocess_sentences as pps
+import utils.process_triples as pt
+import utils.triples_extraction as te
 
 timestr = time.strftime("%Y%m%d-%H%M%S")
-
-banned_subjects = ["he", "she", "it", "his", "hers"]
-SPOTLIGHT_LOCAL_URL = "http://localhost:2222/rest/annotate/"
 SPOTLIGHT_ONLINE_API = "https://api.dbpedia-spotlight.org/en/annotate"
-MODIFIERS = ["compound", "amod", "nummod", "nmod", "advmod", "npadvmod"]
-USE_COMPLEX_SENTENCES = False
 PROP_LEXICALIZATION_TABLE = "datasets/verb_prep_property_lookup.json"
 CLA_LEXICALIZATION_TABLE = "datasets/classes_lookup.json"
-DBPEDIA_ONTOLOGY = "datasets/dbo_ontology_2021.08.06.owl"
-UNKOWN_VALUE = "UNK"
-DEFAULT_VERB = "DEF"
 
-def pipeline(nlp, raw_text, dbo_graph ,prop_lex_table, cla_lex_table, use_comp_sents):
+
+def pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table):
     raw_text = pps.clean_text(raw_text)
-    #d1,d2 = get_dates_first_sentence(document)
     doc = nlp(raw_text)
+
+    # correferences resolution
+    if doc._.coref_chains:
+        rules_analyzer = nlp.get_pipe('coreferee').annotator.rules_analyzer
+        interchange_tokens_pos = []  # list of tuples (pos.i, mention.text)
+        interchangeable_subjects = ["he", "she", "it", "they"]
+        for token in doc:
+            if token.text.lower() in interchangeable_subjects and bool(doc._.coref_chains.resolve(token)):
+                # there is a coreference
+                mention_head = doc._.coref_chains.resolve(token)  # get the mention
+                full_mention = rules_analyzer.get_propn_subtree(doc[mention_head[0].i])  # get the complex proper noun
+                mention_text = ''.join([token.text_with_ws for token in full_mention])
+                interchange_tokens_pos.append((token.i, mention_text))
+
+        if interchange_tokens_pos:
+            resultado = ''
+            pointer = 0
+            for tupla in interchange_tokens_pos:
+                resultado = resultado + doc[pointer:tupla[0]].text_with_ws + tupla[1]
+                pointer = tupla[0] + 1
+            resultado = resultado + doc[pointer:].text_with_ws
+
+            doc = nlp(resultado)
+
     sentences = pps.get_sentences(doc)
-    triples = te.get_all_triples(sentences, use_comp_sents)
-    triples = pt.fix_xcomp_conj(triples)
-    # triples = fix_aux_verbs(triples)
-    triples = pt.append_preps_verbs(triples)
-    triples = pt.split_conjunctions_subjs(triples)
-    triples = pt.split_conjunctions_obj(triples)
-    triples = pt.swap_subjects_correferences(triples, doc._.coref_chains)
+    triples = te.get_all_triples(nlp, sentences)
+    triples = pt.split_amod_conjunctions_subj(nlp, triples)
+    triples = pt.split_amod_conjunctions_obj(nlp, triples)
+
     try:
-        term_URI_dict, term_types_dict = brt.get_annotated_text_dict(raw_text, service_url=SPOTLIGHT_LOCAL_URL)
+        term_URI_dict, term_types_dict = brt.get_annotated_text_dict(raw_text, service_url=SPOTLIGHT_ONLINE_API)
     except:
-        return [],[]
+        return [], []
+
     rdf_triples = brt.replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph)
     return triples, rdf_triples
 
+
 def print_debug(triples):
     """ Print the final result: Original sentence, text triples and rdf triples"""
-    debug_info = ""
     if triples:
-        sent = triples[0].sent
-        debug_info += "-"*50+"  \n"
-        debug_info += f"**{sent}**"
-        debug_info += "  \n"
         for t in triples:
-            if t.sent != sent:
-                sent = t.sent
-                debug_info += "  \n"
-                debug_info += "-"*50+"  \n"
-                debug_info += f"**{sent}**"
-                debug_info += "  \n"
-            debug_info += t.__repr__() + "  \n"
-            debug_info += t.get_rdf_triple() + "  \n"
-    return debug_info
+            st.write(t.sent + '\n')
+            st.write('--> ' + t.__repr__() + '\n')
+            st.write('--> ' + t.get_rdf_triple() + '\n')
+            st.write('----')
 
-def download_ttl(g):
-    """ Build the string containing the download link of the RDF graph. """
-    b64 = base64.b64encode(g).decode()
-    filname = f"generated_graph_{timestr}.ttl"
-    st.markdown(" #### Donwload file ####")
-    href = f'<a href="data:file/ttl;base64,{b64}" download="{filname}"> Click me !!</a>'
-    st.markdown(href, unsafe_allow_html=True)
 
 def get_only_triples_URIs(rdf_triples):
     """ Keep just the triples that are entirely made of URIRef. """
-    new_triples = []
-    for t in rdf_triples:
-        if isinstance(t.pred_rdf, URIRef) and isinstance(t.objct_rdf, URIRef):
-            new_triples.append(t)
-    return new_triples
+    return [t for t in rdf_triples if isinstance(t.pred_rdf, URIRef) and isinstance(t.objct_rdf, URIRef)]
+
 
 @st.cache(allow_output_mutation=True)
 def init():
-    """ Function to load all the external components. It is supposed to run just once. """
+    """ Function to load all the external components. """
     # Load dependency model and add coreferee support
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe('coreferee')
     # Load datastructures
-    prop_lex_table = brt.load_lexicalization_table(PROP_LEXICALIZATION_TABLE)
-    cla_lex_table = brt.load_lexicalization_table(CLA_LEXICALIZATION_TABLE)
+    prop_lex_table = lts.load_lexicalization_table(PROP_LEXICALIZATION_TABLE)
+    cla_lex_table = lts.load_lexicalization_table(CLA_LEXICALIZATION_TABLE)
     dbo_graph = brt.load_dbo_graph(DBPEDIA_ONTOLOGY)
 
     return nlp, prop_lex_table, cla_lex_table, dbo_graph
 
+
+def clear_form():
+    st.session_state["inputtext"] = ""
+
+
 if __name__ == "__main__":
+    st.set_page_config(page_title='Text to RDF', layout='wide')
+    local_ontology_path = 'datasets/'
+    local_ontology_files = glob.glob(f'{local_ontology_path}*.owl')
+    names = [os.path.basename(x) for x in local_ontology_files]
+    namesSorted = sorted(names, reverse=True)
+    DBPEDIA_ONTOLOGY = local_ontology_path + namesSorted[0]
+
     nlp, prop_lex_table, cla_lex_table, dbo_graph = init()
 
-    st.title('DBpedia abstracts to RDF')
-    st.write('This app translates any kind of text into RDF!')
+    # Create a page dropdown list at sidebar
+    page = st.sidebar.selectbox("Choose your task", ["Text to RDF", "Update look up tables"])
+    if page == "Text to RDF" or not page:
 
-    form = st.form("my_form")
-    form.header('User input parameters')
-    raw_text = form.text_area('Insert abstract or any other kind of text', 
-                            help = 'Insert abstract or any other kind of text in order to generate RDF based on the input',
-                            height=400)
-    use_complex_sents = form.checkbox('Use all the sentences',
-                            help='Use all the sentences of the abstract or just use the simplest senteces (it is recommended to leave the checkbox unchecked)')
-    show_text_triples = form.checkbox('Show the simplified sentences',
-                            help='Print the simplified sentences from the triples have been generated. This is useful to understand how the pipeline processed the input')
-    retrieve_only_URIs = form.checkbox('Get only triples with no literals',
-                            help='Discard all the triples containing a literal in them. This happens when the pipeline is unable to find any lexicalization to either predicate or object')
-    print_debg = form.checkbox('Print debug information', help = 'Print the text triples and RDF triples extracted for every sentence')
-    submitted = form.form_submit_button("Submit")
+        st.header('DBpedia abstracts to RDF')
+        st.write('This app translates any kind of text into RDF!')
 
-    if submitted:
-        # primitive user input check
-        if len(raw_text) < 20:
-            st.write("Invalid input text, try something bigger")
-        else:
-            text_triples, rdf_triples = pipeline(nlp, raw_text, dbo_graph ,prop_lex_table, cla_lex_table, use_complex_sents)
-            debug_info = print_debug(rdf_triples)
-            if retrieve_only_URIs:
-                rdf_triples = get_only_triples_URIs(rdf_triples)
-            g = brt.build_result_graph(rdf_triples)
-            download_ttl(g)
+        with st.form('my_form'):
+            st.subheader('User input parameters')
+            raw_text = st.text_area('Insert abstract or any other kind of text', key='inputtext', height=200,
+                                    help='Insert abstract or any other kind of text in order to generate RDF based on the input')
+            show_text_triples = st.checkbox('Show text triples',
+                                            help='Print the text tripels from the sentences. This is useful to understand how the pipeline processed the input')
+            print_debg = st.checkbox('Print debug information',
+                                    help='Print the text triples and RDF triples extracted for every sentence')
 
-            # Printing:
-            # RDF triples
-            st.write("## RDF triples:")
-            st.write('----')
-            rdf_triples = [t.get_rdf_triple() for t in rdf_triples]
-            rdf_triples = [t.__repr__() for t in rdf_triples]
-            rdf_print_triples = list(set(rdf_triples))
-            for t in rdf_print_triples:
-                st.write(t)
+            col1, col2, _, _, _, _, _, _, _, _, _, _ = st.columns(12)
+            submitted = col1.form_submit_button("Submit")
+            col2.form_submit_button("Clear text", on_click=clear_form)
 
-            # Text triples
-            if show_text_triples:
-                st.write("## Text triples:")
+        if submitted:
+            # primitive user input check
+            if len(raw_text) < 20:
+                st.write("Invalid input text, try something bigger")
+            else:
+                with st.spinner('Processing text...'):
+                    text_triples, rdf_triples = pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table)
+
+                if not rdf_triples:
+                    st.warning('No RDF triples where obtained')
+                    st.stop()
+                st.success('Done!')
+
+                # save triples in a graph and returns the graph serialized (ttl format)
+                graph, graph_serialized = brt.build_result_graph(rdf_triples)
+
+                # RDF triples
                 st.write('----')
-                for t in text_triples:
-                    st.write(t.__repr__())
-            
-            # Debug info
-            if print_debg:
-                st.write("## Debug:")
-                st.write("The abstract sentence will be shown in bold and then the text triplet and RDF triplet that have been extracted.")
-                st.write(debug_info)
+                st.subheader("RDF triples:")
+                # read triples from rdf graph
+                for s, p, o in graph.triples((None, None, None)):
+                    st.write(s, ' | ', p, ' | ', o)
+
+                # download_ttl(graph_serialized)
+                st.download_button(label='Download ".ttl" file', data=graph_serialized, file_name='graph.ttl',
+                                   mime='file/ttl')
+
+                # Text triples
+                if show_text_triples:
+                    st.write('----')
+                    st.subheader("Text triples:")
+                    for t in text_triples:
+                        st.write(t.__repr__())
+
+                # Debug info
+                if print_debg:
+                    st.write('----')
+                    st.subheader("Debug:")
+                    print_debug(rdf_triples)
+
+    elif page == "Update look up tables":
+        st.header('Look up tables')
+        update_ontology = st.sidebar.button('Update DBpedia ontology',
+                                            help='Download latest DBpedia ontology in format owl')
+
+        if "class_tbl" not in st.session_state:
+            df_classes = pd.DataFrame.from_dict(cla_lex_table, orient="index", columns=["URI"])
+            st.session_state.class_tbl = df_classes.sort_index()
+        if "prop_tbl" not in st.session_state:
+            sorted_json = json.dumps(prop_lex_table, sort_keys=True)  # sort in ascending order
+            st.session_state.prop_tbl = sorted_json
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st1 = st.expander("Class table").empty()
+            st1.dataframe(st.session_state.class_tbl)
+            with st.form("insert_class_form"):
+                st.subheader('New entry - Classes Table')
+                class_name = st.text_input('Enter class name:', key="name")
+                class_URI = st.text_input('Enter URI:', key="URI")
+                if submitted_insert_class_form := st.form_submit_button("Submit"):
+                    if validators.url(class_URI):
+                        class_name = class_name.lower()
+                        if res := lts.update_classes_lookup(class_name, class_URI, cla_lex_table, CLA_LEXICALIZATION_TABLE):
+                            st.success(f'Inserted "{class_name}" with URI {class_URI}')
+                            st.session_state.class_tbl.loc[class_name] = class_URI  # adding a row
+                            st.session_state.class_tbl = st.session_state.class_tbl.sort_index()
+                            st1.dataframe(st.session_state.class_tbl)  # show current table content
+                    else:
+                        st.error(f'The URI {class_URI} is not valid')
+
+        with col2:
+            st2 = st.expander("Properties table").empty()
+            st2.json(st.session_state.prop_tbl, expanded=False)
+            with st.form("insert_prop_form"):
+                st.subheader('New entry - Verbs Table')
+                verb = st.text_input('Enter verb (in infinitive form):', key="verb")
+                prep = st.text_input('Enter preposition (if necessary):', key="prep")
+                pURI = st.text_input('Enter URI:', key="pURI")
+                if submitted_insert_prop_form := st.form_submit_button("Submit"):
+                    if validators.url(pURI):
+                        verb = verb.lower()
+                        prep = prep.lower()
+                        res, prop_lex_table = lts.update_verb_prep_property_lookup(verb, prep, pURI, prop_lex_table, PROP_LEXICALIZATION_TABLE)
+                        if res:
+                            st.success(f'Inserted "{verb} {prep}" with URI {pURI}')
+                            sorted_json = json.dumps(prop_lex_table, sort_keys=True)  # update session_state table
+                            st.session_state.prop_tbl = sorted_json
+                            st2.json(st.session_state.prop_tbl, expanded=False)  # show current table content
+                    else:
+                        st.error(f'The URI {pURI} is not valid')
+
+        if update_ontology:
+            with st.spinner('This task can take a while. Please wait...'):
+                download_state = uo.update_ontology_file()
+            if not download_state[0]:
+                st.sidebar.error(download_state[1])
+            else:
+                st.sidebar.success(download_state[1])
+                st.sidebar.success('Please, re-run app to load changes')
