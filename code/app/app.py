@@ -138,7 +138,7 @@ if __name__ == "__main__":
             text_triples_all = []
             rdf_triples_all = []
             for line in f.readlines():
-                raw_text = re.sub('\n', '', line)
+                raw_text = raw_text.replace('\n', '')
                 tracking_log(raw_text, level=0)  # tracking
                 text_triples, rdf_triples = pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table)
                 tracking_log(text_triples, level=4)  # tracking
