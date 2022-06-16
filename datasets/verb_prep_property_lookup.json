@@ -402,7 +402,7 @@
         "as": "UNK",
         "for": "UNK",
         "from": "UNK",
-        "to": "UNK",
+        "to": "http://dbpedia.org/ontology/alias",
         "with": "UNK",
         "during": "UNK",
         "after": "UNK",
@@ -423,7 +423,7 @@
         "after": "UNK",
         "of": "UNK",
         "into": "UNK",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/occupation"
     },
     "elect": {
         "in": "UNK",
@@ -663,6 +663,10 @@
         "to": "http://dbpedia.org/ontology/education",
         "DEF": "UNK"
     },
+    "move": {
+        "to": "http://dbpedia.org/ontology/movement",
+        "DEF": "http://dbpedia.org/ontology/movement"
+    },
     "canonize": {
         "in": "http://dbpedia.org/ontology/canonizedPlace",
         "DEF": "UNK"
@@ -768,7 +772,7 @@
     "begin": {
         "at": "http://dbpedia.org/ontology/routeStart",
         "in": "http://dbpedia.org/ontology/routeStart",
-        "DEF": "UNK"
+        "DEF": "http://dbpedia.org/ontology/startPoint"
     },
     "end": {
         "at": "http://dbpedia.org/ontology/routeEnd",
