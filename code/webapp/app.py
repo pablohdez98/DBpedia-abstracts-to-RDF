@@ -1,6 +1,4 @@
-import base64
 import glob
-import json
 import os
 import time
 
@@ -8,6 +6,7 @@ import pandas as pd
 import spacy
 import coreferee
 import streamlit as st
+from st_aggrid import AgGrid, GridUpdateMode, GridOptionsBuilder
 import utils.update_ontology as uo
 import validators
 from rdflib.term import URIRef
@@ -61,7 +60,8 @@ def pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table):
     except:
         return [], []
 
-    rdf_triples = brt.replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph)
+    rdf_triples = brt.replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table,
+                                       dbo_graph)
     return triples, rdf_triples
 
 
@@ -98,6 +98,106 @@ def clear_form():
     st.session_state["inputtext"] = ""
 
 
+def insert_class_table(class_name, class_uri):
+    if not validators.url(class_uri):
+        st.error(f'The URI {class_uri} is not valid')
+        return
+    class_name = class_name.lower()
+    res, msg = lts.insert_classes_lookup(class_name, class_uri, cla_lex_table, CLA_LEXICALIZATION_TABLE)
+    if res:
+        st.success(f'The class {class_name} with URI {class_uri} has been created')
+        st.session_state.cla_lex_table[class_name] = class_uri
+        st.session_state.class_tbl.loc[-1] = [class_name, class_uri]
+        st.session_state.class_tbl.index = st.session_state.class_tbl.index + 1
+        st.session_state.class_tbl.sort_index(inplace=True)
+    else:
+        st.error(msg)
+
+
+def update_class_table(new_cla_lex_table):
+    diff = set(new_cla_lex_table.items()) ^ set(cla_lex_table.items())
+    for value in diff:
+        if not validators.url(value[1]):
+            st.error(f'The URI {value[1]} is not valid')
+            return
+    if lts.update_classes_lookup(new_cla_lex_table, CLA_LEXICALIZATION_TABLE):
+        st.success('Class has been updated')
+        st.session_state.cla_lex_table = new_cla_lex_table
+    else:
+        st.error('Class could not be updated')
+
+
+def delete_class_table(rows_selected):
+    classes = [row['class_name'] for row in rows_selected]
+    if lts.delete_classes_lookup(classes, cla_lex_table, CLA_LEXICALIZATION_TABLE):
+        st.success(f'The classes {classes} were deleted')
+        st.session_state.class_tbl = st.session_state.class_tbl[~st.session_state.class_tbl.class_name.isin(classes)]
+    else:
+        st.error('Class could not be deleted')
+
+
+def insert_prop_table(verb, prep, prop_uri):
+    if not validators.url(prop_uri):
+        st.error(f'The URI {prop_uri} is not valid')
+        return
+    verb = verb.lower()
+    prep = prep.lower()
+    res, prop_lex_path, msg, new_row = lts.insert_props_lookup(verb, prep, prop_uri, prop_lex_table, PROP_LEXICALIZATION_TABLE)
+    if res:
+        st.success(f'The property ({verb}, {prep}) with URI {prop_uri} has been created')
+        st.session_state.prop_lex_table = prop_lex_table
+        if new_row:
+            st.session_state.prop_tbl.loc[-1] = [verb.lower(), prep.lower(), prop_uri]
+            st.session_state.prop_tbl.index = st.session_state.prop_tbl.index + 1
+            st.session_state.prop_tbl.sort_index(inplace=True)
+        else:
+            if not prep:
+                prep = 'DEF'
+            df = st.session_state.prop_tbl
+            previous_uri = df[(df['verb'] == verb) & (df['prep'] == prep)]
+            index = previous_uri.index[0]
+            new_uri_list = list(previous_uri['uri'])
+            new_uri_list.append(prop_uri)
+            new_uri_list = ', '.join(new_uri_list)
+            df.at[index, 'uri'] = new_uri_list
+    else:
+        st.error(msg)
+
+
+def update_prop_table(new_prop_lex_table):
+    if lts.update_props_lookup(new_prop_lex_table, PROP_LEXICALIZATION_TABLE):
+        st.success('Property has been updated')
+        st.session_state.prop_lex_table = new_prop_lex_table
+    else:
+        st.error('Property could not be updated')
+
+
+def delete_prop_table(rows_selected):
+    props = [(row['verb'], row['prep']) for row in rows_selected]
+    if lts.delete_props_lookup(props, prop_lex_table, PROP_LEXICALIZATION_TABLE):
+        st.success(f'The properties {props} were deleted')
+        for verb, prep in props:
+            st.session_state.prop_tbl = st.session_state.prop_tbl.drop(
+                st.session_state.prop_tbl[
+                    (st.session_state.prop_tbl['verb'] == verb) & (st.session_state.prop_tbl['prep'] == prep)].index)
+    else:
+        st.error('Property could not be deleted')
+
+
+def create_grid_table(data):
+    gd = GridOptionsBuilder.from_dataframe(data)
+    gd.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=20)
+    gd.configure_default_column(editable=True, groupable=True, min_column_width=5)
+    gd.configure_selection(selection_mode='multiple', use_checkbox=True)
+    grid_options = gd.build()
+
+    return AgGrid(data, gridOptions=grid_options, height=500, theme='material',
+                  update_mode=GridUpdateMode.SELECTION_CHANGED | GridUpdateMode.VALUE_CHANGED |
+                              GridUpdateMode.FILTERING_CHANGED | GridUpdateMode.SORTING_CHANGED |
+                              GridUpdateMode.MODEL_CHANGED | GridUpdateMode.MANUAL,
+                  fit_columns_on_grid_load=True, reload_data=True)
+
+
 if __name__ == "__main__":
     st.set_page_config(page_title='Text to RDF', layout='wide')
     local_ontology_path = 'datasets/'
@@ -122,7 +222,7 @@ if __name__ == "__main__":
             show_text_triples = st.checkbox('Show text triples',
                                             help='Print the text tripels from the sentences. This is useful to understand how the pipeline processed the input')
             print_debg = st.checkbox('Print debug information',
-                                    help='Print the text triples and RDF triples extracted for every sentence')
+                                     help='Print the text triples and RDF triples extracted for every sentence')
 
             col1, col2, _, _, _, _, _, _, _, _, _, _ = st.columns(12)
             submitted = col1.form_submit_button("Submit")
@@ -145,15 +245,13 @@ if __name__ == "__main__":
                 graph, graph_serialized = brt.build_result_graph(rdf_triples)
 
                 # RDF triples
-                st.write('----')
                 st.subheader("RDF triples:")
                 # read triples from rdf graph
                 for s, p, o in graph.triples((None, None, None)):
                     st.write(s, ' | ', p, ' | ', o)
 
                 # download_ttl(graph_serialized)
-                st.download_button(label='Download ".ttl" file', data=graph_serialized, file_name='graph.ttl',
-                                   mime='file/ttl')
+                st.download_button(label='Download ".ttl" file', data=graph_serialized, file_name='graph.ttl', mime='file/ttl')
 
                 # Text triples
                 if show_text_triples:
@@ -169,58 +267,8 @@ if __name__ == "__main__":
                     print_debug(rdf_triples)
 
     elif page == "Update look up tables":
-        st.header('Look up tables')
-        update_ontology = st.sidebar.button('Update DBpedia ontology',
-                                            help='Download latest DBpedia ontology in format owl')
-
-        if "class_tbl" not in st.session_state:
-            df_classes = pd.DataFrame.from_dict(cla_lex_table, orient="index", columns=["URI"])
-            st.session_state.class_tbl = df_classes.sort_index()
-        if "prop_tbl" not in st.session_state:
-            sorted_json = json.dumps(prop_lex_table, sort_keys=True)  # sort in ascending order
-            st.session_state.prop_tbl = sorted_json
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st1 = st.expander("Class table").empty()
-            st1.dataframe(st.session_state.class_tbl)
-            with st.form("insert_class_form"):
-                st.subheader('New entry - Classes Table')
-                class_name = st.text_input('Enter class name:', key="name")
-                class_URI = st.text_input('Enter URI:', key="URI")
-                if submitted_insert_class_form := st.form_submit_button("Submit"):
-                    if validators.url(class_URI):
-                        class_name = class_name.lower()
-                        if res := lts.update_classes_lookup(class_name, class_URI, cla_lex_table, CLA_LEXICALIZATION_TABLE):
-                            st.success(f'Inserted "{class_name}" with URI {class_URI}')
-                            st.session_state.class_tbl.loc[class_name] = class_URI  # adding a row
-                            st.session_state.class_tbl = st.session_state.class_tbl.sort_index()
-                            st1.dataframe(st.session_state.class_tbl)  # show current table content
-                    else:
-                        st.error(f'The URI {class_URI} is not valid')
-
-        with col2:
-            st2 = st.expander("Properties table").empty()
-            st2.json(st.session_state.prop_tbl, expanded=False)
-            with st.form("insert_prop_form"):
-                st.subheader('New entry - Verbs Table')
-                verb = st.text_input('Enter verb (in infinitive form):', key="verb")
-                prep = st.text_input('Enter preposition (if necessary):', key="prep")
-                pURI = st.text_input('Enter URI:', key="pURI")
-                if submitted_insert_prop_form := st.form_submit_button("Submit"):
-                    if validators.url(pURI):
-                        verb = verb.lower()
-                        prep = prep.lower()
-                        res, prop_lex_table = lts.update_verb_prep_property_lookup(verb, prep, pURI, prop_lex_table, PROP_LEXICALIZATION_TABLE)
-                        if res:
-                            st.success(f'Inserted "{verb} {prep}" with URI {pURI}')
-                            sorted_json = json.dumps(prop_lex_table, sort_keys=True)  # update session_state table
-                            st.session_state.prop_tbl = sorted_json
-                            st2.json(st.session_state.prop_tbl, expanded=False)  # show current table content
-                    else:
-                        st.error(f'The URI {pURI} is not valid')
-
-        if update_ontology:
+        st.header('Lexicalization tables')
+        if update_ontology := st.sidebar.button('Update DBpedia ontology', help='Download latest DBpedia ontology in format owl'):
             with st.spinner('This task can take a while. Please wait...'):
                 download_state = uo.update_ontology_file()
             if not download_state[0]:
@@ -228,3 +276,72 @@ if __name__ == "__main__":
             else:
                 st.sidebar.success(download_state[1])
                 st.sidebar.success('Please, re-run app to load changes')
+
+        col1, _, _, _, _ = st.columns(5)
+        with col1:
+            option = st.selectbox('', options=('Classes', 'Properties'))
+
+        if option == 'Classes':
+            if "class_tbl" not in st.session_state:
+                df_classes = pd.DataFrame.from_dict(cla_lex_table, orient="index", columns=["URI"]).reset_index()
+                df_classes.rename(columns={'index': 'class_name'}, inplace=True)
+                st.session_state.class_tbl = df_classes
+                st.session_state.cla_lex_table = cla_lex_table
+
+            grid_class_table = create_grid_table(st.session_state.class_tbl)
+
+            selection_list = grid_class_table["selected_rows"]
+            st.button('Delete', on_click=delete_class_table, args=(selection_list,), disabled=selection_list == [])
+
+            dict_df = dict(zip(grid_class_table['data'].class_name, grid_class_table['data'].URI))
+            if dict_df != st.session_state.cla_lex_table:
+                update_class_table(dict_df)
+
+            _, col_form, _ = st.columns(3)
+            with col_form:
+                with st.form("insert_class_form"):
+                    st.subheader('New entry')
+                    class_name = st.text_input('Enter class name:', key="name")
+                    class_URI = st.text_input('Enter URI:', key="URI")
+                    if submitted_insert_class_form := st.form_submit_button("Submit"):
+                        insert_class_table(class_name, class_URI)
+
+        elif option == 'Properties':
+            if "prop_tbl" not in st.session_state:
+                df_prop = pd.DataFrame(columns=['verb', 'prep', 'uri'])
+                for verb in prop_lex_table.keys():
+                    for prep, uri in prop_lex_table[verb].items():
+                        df_prop = pd.concat([df_prop, pd.DataFrame([[verb, prep, uri]], columns=df_prop.columns)], ignore_index=True)
+                df_prop['uri'] = [', '.join(map(str, l)) if isinstance(l, list) else l for l in df_prop['uri']]
+                st.session_state.prop_tbl = df_prop
+                st.session_state.prop_lex_table = prop_lex_table
+
+            grid_prop_table = create_grid_table(st.session_state.prop_tbl)
+            selection_list = grid_prop_table["selected_rows"]
+            st.button('Delete', on_click=delete_prop_table, args=(selection_list,), disabled=selection_list == [])
+
+            df_grid = st.session_state.prop_tbl
+            verb_list = sorted(set(df_grid.verb))
+            dict_df = {}
+            for verb in verb_list:
+                uris = []
+                for uri in df_grid[df_grid['verb'] == verb]['uri']:
+                    uri_list = uri.split(', ')
+                    if len(uri_list) > 1:
+                        uris.append(uri_list)
+                    else:
+                        uris.append(uri)
+                dict_df[verb] = dict(zip(df_grid[df_grid['verb'] == verb]['prep'], uris))
+
+            if dict_df != st.session_state.prop_lex_table:
+                update_prop_table(dict_df)
+
+            _, col_form, _ = st.columns(3)
+            with col_form:
+                with st.form("insert_prop_form"):
+                    st.subheader('New entry')
+                    verb = st.text_input('Enter verb (in infinitive form):', key="verb")
+                    prep = st.text_input('Enter preposition (if necessary):', key="prep")
+                    prop_uri = st.text_input('Enter URI:', key="pURI")
+                    if submitted_insert_prop_form := st.form_submit_button("Submit"):
+                        insert_prop_table(verb, prep, prop_uri)
