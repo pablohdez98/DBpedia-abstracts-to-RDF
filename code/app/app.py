@@ -4,7 +4,6 @@ Author: Fernando Casabán Blasco and Pablo Hernández Carrascosa
 import argparse
 import glob
 import os
-import re
 import time
 
 import spacy
@@ -20,33 +19,37 @@ from utils.log_generator import tracking_log
 
 timestr = time.strftime("%Y%m%d-%H%M%S")
 
+EVALUATION = True
 PROP_LEXICALIZATION_TABLE = "datasets/verb_prep_property_lookup.json"
 CLA_LEXICALIZATION_TABLE = "datasets/classes_lookup.json"
 OUTPUT_FOLDER = "code/app/output/"
 SPOTLIGHT_ONLINE_API = "https://api.dbpedia-spotlight.org/en/annotate"
+SPOTLIGHT_LOCAL_URL = "http://localhost:2222/rest/annotate/"
 
 
 def pipeline(nlp, raw_text, dbo_graph ,prop_lex_table, cla_lex_table):
     raw_text = pps.clean_text(raw_text)
     doc = nlp(raw_text)
     # correferences resolution
-    interchangeable_subjects = ["he", "she", "it", "they"]
     if doc._.coref_chains:
         rules_analyzer = nlp.get_pipe('coreferee').annotator.rules_analyzer
         interchange_tokens_pos = []  # list of tuples (pos.i, mention.text)
+        interchangeable_subjects = ["he", "she", "it", "they"]
         for token in doc:
             if token.text.lower() in interchangeable_subjects and bool(doc._.coref_chains.resolve(token)):
                 # there is a coreference
                 mention_head = doc._.coref_chains.resolve(token)  # get the mention
-                full_mention = rules_analyzer.get_propn_subtree(doc[mention_head[0].i])  # get the complex proper noun
-                mention_text = ''.join([token.text_with_ws for token in full_mention])
-                interchange_tokens_pos.append((token.i, mention_text))
+                if full_mention := rules_analyzer.get_propn_subtree(doc[mention_head[0].i]):
+                    mention_text = ''.join([token.text_with_ws for token in full_mention])
+                    interchange_tokens_pos.append((token.i, mention_text))
+                else:
+                    interchange_tokens_pos.append((token.i, doc[mention_head[0].i].text))
 
-        if len(interchange_tokens_pos) > 0:
+        if interchange_tokens_pos:
             resultado = ''
             pointer = 0
             for tupla in interchange_tokens_pos:
-                resultado = resultado + doc[pointer:tupla[0]].text_with_ws + tupla[1]
+                resultado = resultado + doc[pointer:tupla[0]].text_with_ws + tupla[1] + ' '
                 pointer = tupla[0] + 1
             resultado = resultado + doc[pointer:].text_with_ws
 
@@ -54,18 +57,19 @@ def pipeline(nlp, raw_text, dbo_graph ,prop_lex_table, cla_lex_table):
         tracking_log(doc, level=1)  # tracking
 
     sentences = pps.get_sentences(doc)
+    n_sent_spacy = len(sentences)  # evaluation
     tracking_log(sentences, level=2)  # tracking
 
-    triples = te.get_all_triples(nlp, sentences)
+    triples, n_sent_simples = te.get_all_triples(nlp, sentences)
     triples = pt.split_amod_conjunctions_subj(nlp, triples)
     triples = pt.split_amod_conjunctions_obj(nlp, triples)
 
     try:
-        term_URI_dict, term_types_dict = brt.get_annotated_text_dict(raw_text, service_url=SPOTLIGHT_ONLINE_API)
+        term_URI_dict, term_types_dict = brt.get_annotated_text_dict(raw_text, service_url=SPOTLIGHT_LOCAL_URL)
     except:
-        return [], []
+        return [], [], n_sent_spacy, n_sent_simples
     rdf_triples = brt.replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph)
-    return triples, rdf_triples
+    return triples, rdf_triples, n_sent_spacy, n_sent_simples
 
 
 def print_debug(triples):
@@ -90,11 +94,7 @@ def print_debug(triples):
 
 def get_only_triples_URIs(rdf_triples):
     """ Keep just the triples that are entirely made of URIRef. """
-    new_triples = []
-    for t in rdf_triples:
-        if isinstance(t.pred_rdf, URIRef) and isinstance(t.objct_rdf, URIRef):
-            new_triples.append(t)
-    return new_triples
+    return [t for t in rdf_triples if isinstance(t.pred_rdf, URIRef) and isinstance(t.objct_rdf, URIRef)]
 
 
 def init():
@@ -112,7 +112,7 @@ def init():
 
 if __name__ == "__main__":
     local_ontology_path = 'datasets/'
-    local_ontology_files = glob.glob(local_ontology_path + '*.owl')  # Local ontology files (ending with .owl)
+    local_ontology_files = glob.glob(f'{local_ontology_path}*.owl')
     names = [os.path.basename(x) for x in local_ontology_files]
     namesSorted = sorted(names, reverse=True)
     DBPEDIA_ONTOLOGY = local_ontology_path + namesSorted[0]
@@ -133,6 +133,16 @@ if __name__ == "__main__":
     if os.path.exists(tracking_file_name):
         os.remove(tracking_file_name)
 
+    if EVALUATION:
+        tracking_file_name = "log_files/literals_log.txt"
+        if os.path.exists(tracking_file_name):
+            os.remove(tracking_file_name)
+        n_abstracts = 0
+        n_sent_spacy = 0
+        n_sent_simple = 0
+        n_text_triples = 0
+        n_RDF_triples = 0
+
     try:
         with open(args.input_text, encoding='utf8') as f:
             text_triples_all = []
@@ -140,7 +150,7 @@ if __name__ == "__main__":
             for line in f.readlines():
                 raw_text = raw_text.replace('\n', '')
                 tracking_log(raw_text, level=0)  # tracking
-                text_triples, rdf_triples = pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table)
+                text_triples, rdf_triples, nsent_spacy, nsent_simples = pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table)
                 tracking_log(text_triples, level=4)  # tracking
                 if rdf_triples:
                     text_triples_all.extend(rdf_triples)
@@ -151,6 +161,12 @@ if __name__ == "__main__":
                 rdf_triples = [t.get_rdf_triple() for t in rdf_triples]
                 rdf_triples = [t.__repr__() for t in rdf_triples]
                 rdf_print_triples = list(set(rdf_triples))
+                if EVALUATION:
+                    n_abstracts = n_abstracts + 1
+                    n_sent_spacy = n_sent_spacy + nsent_spacy
+                    n_sent_simple = n_sent_simple + nsent_simples
+                    n_text_triples = n_text_triples + len(text_triples)
+                    n_RDF_triples = n_RDF_triples + len(rdf_print_triples)
                 for t in rdf_print_triples:
                     print(t)
                     rdf_triples_all.append(t)
@@ -190,6 +206,14 @@ if __name__ == "__main__":
                 except:
                     print(f"Error while saving the debug info in the {OUTPUT_FOLDER} folder")
                     exit()
+
+        if EVALUATION:
+            print(n_abstracts, 'abstracts analizados')
+            print(n_sent_spacy, 'sentencias identificadas por Spacy')
+            print(n_sent_simple, 'sentencias simples analizadas')
+            print(n_text_triples, 'tripletas de texto generadas')
+            print(n_RDF_triples, 'tripletas RDF generadas')
+
     except IOError:
         print(f"Error while reading {fpath} (input text)")
         exit()

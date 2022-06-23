@@ -37,3 +37,27 @@ def triple_with_no_uri_log(timestr, triple, item):
         f.write(f'{triple.subj} | {triple.pred} | {triple.objct}\n')
         f.write(f'Literal: <{item}>\n')
     f.close()
+
+
+def triple_with_no_uri_log_subject(timestr, triple, item):
+    with open(f'{FOLDER_PATH}literals_log.txt', 'a', encoding='utf-8') as f:
+        f.write(f'{timestr} >>SENTENCE: {triple.sent}\n')
+        f.write(f'{triple.subj} | {triple.pred} | {triple.objct}\n')
+        f.write(f'Subject not FOUND: <{item}>\n')
+    f.close()
+
+
+def triple_with_no_uri_log_object(timestr, triple, item):
+    with open(f'{FOLDER_PATH}literals_log.txt', 'a', encoding='utf-8') as f:
+        f.write(f'{timestr} >>SENTENCE: {triple.sent}\n')
+        f.write(f'{triple.subj} | {triple.pred} | {triple.objct}\n')
+        f.write(f'Literal object <to be>: <{item}>\n')
+    f.close()
+
+
+def triple_with_no_uri_log_object2(timestr, triple, item):
+    with open(f'{FOLDER_PATH}literals_log.txt', 'a', encoding='utf-8') as f:
+        f.write(f'{timestr} >>SENTENCE: {triple.sent}\n')
+        f.write(f'{triple.subj} | {triple.pred} | {triple.objct}\n')
+        f.write(f'Literal object: <{item}>\n')
+    f.close()
