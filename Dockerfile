@@ -4,4 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-CMD ["python", "code/app/app.py", "--input_text=code/app/input.txt",  "--all_sentences", "--save_debug" ]
+EXPOSE 8501
+
+CMD ["streamlit", "run", "code/webapp/app.py"]
