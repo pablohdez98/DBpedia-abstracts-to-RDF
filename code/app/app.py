@@ -19,7 +19,7 @@ from utils.log_generator import tracking_log
 
 timestr = time.strftime("%Y%m%d-%H%M%S")
 
-EVALUATION = True
+EVALUATION = False
 PROP_LEXICALIZATION_TABLE = "datasets/verb_prep_property_lookup.json"
 CLA_LEXICALIZATION_TABLE = "datasets/classes_lookup.json"
 OUTPUT_FOLDER = "code/app/output/"
@@ -34,9 +34,8 @@ def pipeline(nlp, raw_text, dbo_graph ,prop_lex_table, cla_lex_table):
     if doc._.coref_chains:
         rules_analyzer = nlp.get_pipe('coreferee').annotator.rules_analyzer
         interchange_tokens_pos = []  # list of tuples (pos.i, mention.text)
-        interchangeable_subjects = ["he", "she", "it", "they"]
         for token in doc:
-            if token.text.lower() in interchangeable_subjects and bool(doc._.coref_chains.resolve(token)):
+            if bool(doc._.coref_chains.resolve(token)):
                 # there is a coreference
                 mention_head = doc._.coref_chains.resolve(token)  # get the mention
                 if full_mention := rules_analyzer.get_propn_subtree(doc[mention_head[0].i]):
@@ -167,6 +166,7 @@ if __name__ == "__main__":
                     n_sent_simple = n_sent_simple + nsent_simples
                     n_text_triples = n_text_triples + len(text_triples)
                     n_RDF_triples = n_RDF_triples + len(rdf_print_triples)
+                    n_duplicadas = n_duplicadas + (len(rdf_triples) - len(rdf_print_triples))
                 for t in rdf_print_triples:
                     print(t)
                     rdf_triples_all.append(t)
@@ -213,6 +213,7 @@ if __name__ == "__main__":
             print(n_sent_simple, 'sentencias simples analizadas')
             print(n_text_triples, 'tripletas de texto generadas')
             print(n_RDF_triples, 'tripletas RDF generadas')
+            print(n_duplicadas, 'tripletas RDF duplicadas')
 
     except IOError:
         print(f"Error while reading {fpath} (input text)")
