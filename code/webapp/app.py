@@ -1,3 +1,6 @@
+"""
+Author: Fernando Casabán Blasco and Pablo Hernández Carrascosa
+"""
 import glob
 import os
 import time
@@ -26,19 +29,19 @@ CLA_LEXICALIZATION_TABLE = "datasets/classes_lookup.json"
 def pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table):
     raw_text = pps.clean_text(raw_text)
     doc = nlp(raw_text)
-
     # correferences resolution
     if doc._.coref_chains:
         rules_analyzer = nlp.get_pipe('coreferee').annotator.rules_analyzer
         interchange_tokens_pos = []  # list of tuples (pos.i, mention.text)
-        interchangeable_subjects = ["he", "she", "it", "they"]
         for token in doc:
-            if token.text.lower() in interchangeable_subjects and bool(doc._.coref_chains.resolve(token)):
+            if bool(doc._.coref_chains.resolve(token)):
                 # there is a coreference
                 mention_head = doc._.coref_chains.resolve(token)  # get the mention
-                full_mention = rules_analyzer.get_propn_subtree(doc[mention_head[0].i])  # get the complex proper noun
-                mention_text = ''.join([token.text_with_ws for token in full_mention])
-                interchange_tokens_pos.append((token.i, mention_text))
+                if full_mention := rules_analyzer.get_propn_subtree(doc[mention_head[0].i]):
+                    mention_text = ''.join([token.text_with_ws for token in full_mention])
+                    interchange_tokens_pos.append((token.i, mention_text))
+                else:
+                    interchange_tokens_pos.append((token.i, doc[mention_head[0].i].text))
 
         if interchange_tokens_pos:
             resultado = ''
@@ -47,11 +50,10 @@ def pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table):
                 resultado = resultado + doc[pointer:tupla[0]].text_with_ws + tupla[1]
                 pointer = tupla[0] + 1
             resultado = resultado + doc[pointer:].text_with_ws
-
             doc = nlp(resultado)
 
     sentences = pps.get_sentences(doc)
-    triples = te.get_all_triples(nlp, sentences)
+    triples, n_sent_simples = te.get_all_triples(nlp, sentences)
     triples = pt.split_amod_conjunctions_subj(nlp, triples)
     triples = pt.split_amod_conjunctions_obj(nlp, triples)
 
@@ -60,8 +62,7 @@ def pipeline(nlp, raw_text, dbo_graph, prop_lex_table, cla_lex_table):
     except:
         return [], []
 
-    rdf_triples = brt.replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table,
-                                       dbo_graph)
+    rdf_triples = brt.replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph)
     return triples, rdf_triples
 
 
@@ -224,7 +225,7 @@ if __name__ == "__main__":
             print_debg = st.checkbox('Print debug information',
                                      help='Print the text triples and RDF triples extracted for every sentence')
 
-            col1, col2, _, _, _, _, _, _, _, _, _, _ = st.columns(12)
+            col1, col2, _, _, _, _, _, _ = st.columns(8)
             submitted = col1.form_submit_button("Submit")
             col2.form_submit_button("Clear text", on_click=clear_form)
 
@@ -308,11 +309,11 @@ if __name__ == "__main__":
 
         elif option == 'Properties':
             if "prop_tbl" not in st.session_state:
-                df_prop = pd.DataFrame(columns=['verb', 'prep', 'uri'])
+                df_prop = pd.DataFrame(columns=['verb', 'prep', 'URI'])
                 for verb in prop_lex_table.keys():
                     for prep, uri in prop_lex_table[verb].items():
                         df_prop = pd.concat([df_prop, pd.DataFrame([[verb, prep, uri]], columns=df_prop.columns)], ignore_index=True)
-                df_prop['uri'] = [', '.join(map(str, l)) if isinstance(l, list) else l for l in df_prop['uri']]
+                df_prop['URI'] = [', '.join(map(str, l)) if isinstance(l, list) else l for l in df_prop['URI']]
                 st.session_state.prop_tbl = df_prop
                 st.session_state.prop_lex_table = prop_lex_table
 
@@ -325,7 +326,7 @@ if __name__ == "__main__":
             dict_df = {}
             for verb in verb_list:
                 uris = []
-                for uri in df_grid[df_grid['verb'] == verb]['uri']:
+                for uri in df_grid[df_grid['verb'] == verb]['URI']:
                     uri_list = uri.split(', ')
                     if len(uri_list) > 1:
                         uris.append(uri_list)

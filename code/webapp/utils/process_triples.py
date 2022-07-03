@@ -76,21 +76,13 @@ def split_amod_conjunctions_obj(nlp, triples):
         object_text = ''.join(token.text_with_ws for token in triple.objct)
 
         doc = nlp(object_text)
-        #        displacy.serve(doc, style='dep')
 
         patt_amod_conj = [{"RIGHT_ID": "root", "RIGHT_ATTRS": {"DEP": "ROOT"}},
                           {"LEFT_ID": "root", "REL_OP": ">", "RIGHT_ID": "adjetive", "RIGHT_ATTRS": {"DEP": "amod"}},
-                          {"LEFT_ID": "adjetive", "REL_OP": ">", "RIGHT_ID": "conj", "RIGHT_ATTRS": {"DEP": "conj"}}
-                          ]
-        patt_obj_conj = [{"RIGHT_ID": "root", "RIGHT_ATTRS": {"DEP": "ROOT"}},
-                         {"LEFT_ID": "root", "REL_OP": ">>", "RIGHT_ID": "obj",
-                          "RIGHT_ATTRS": {"DEP": {"IN": ["dobj", "pobj"]}}},
-                         {"LEFT_ID": "obj", "REL_OP": ">", "RIGHT_ID": "conj", "RIGHT_ATTRS": {"DEP": "conj"}}
-                         ]
+                          {"LEFT_ID": "adjetive", "REL_OP": ">", "RIGHT_ID": "conj", "RIGHT_ATTRS": {"DEP": "conj"}}]
 
         dep_matcher = DependencyMatcher(nlp.vocab)
         dep_matcher.add("patt_amod_conj", [patt_amod_conj])
-        dep_matcher.add("patt_obj_conj", [patt_obj_conj])
         dep_matches = dep_matcher(doc)
 
         if not dep_matches:
@@ -117,25 +109,6 @@ def split_amod_conjunctions_obj(nlp, triples):
                     new.extend([token for token in shared_text_right])
                     simpler_objects.append(new)
 
-            elif string_id == "patt_obj_conj":
-                conjs = doc[token_id[1]].conjuncts  # coordinated "obj" tokens, not including the token itself
-
-                full_object = te.get_sentence_subtree_from_token(doc[token_id[1]], ["cc", "conj"], inner=False)  # obj with "compound" and "amod" tokens
-
-                shared_text_left = doc[:full_object[0].i]  # span previous to the first "obj"
-                shared_text_right = doc[(conjs[-1].i + 1):]  # span after last "obj"
-
-                new = [token for token in shared_text_left]
-                new.extend([token for token in full_object if not token.is_punct])
-                new.extend([token for token in shared_text_right])
-                simpler_objects.append(new)
-
-                for c in conjs:
-                    new = [token for token in shared_text_left]
-                    full_object = te.get_sentence_subtree_from_token(c, ["cc", "conj"], inner=False)  # next obj with "compound" and "amod" tokens
-                    new.extend([token for token in full_object if not token.is_punct])
-                    new.extend([token for token in shared_text_right])
-                    simpler_objects.append(new)
             # Build triples
             for o in simpler_objects:
                 new_triple = triple.get_copy()

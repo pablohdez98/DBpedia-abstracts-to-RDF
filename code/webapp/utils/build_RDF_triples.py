@@ -2,7 +2,8 @@ import requests
 import json
 import time
 from rdflib import Graph, RDFS, URIRef, Literal
-from utils.log_generator import triple_with_no_uri_log
+from utils.log_generator import triple_with_no_uri_log, triple_with_no_uri_log_subject, triple_with_no_uri_log_object, triple_with_no_uri_log_object2
+import string
 
 SPOTLIGHT_ONLINE_API = "https://api.dbpedia-spotlight.org/en/annotate"
 UNKOWN_VALUE = "UNK"
@@ -26,11 +27,18 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
     try:
         resp = requests.get(service_url, params=parameters, headers=headerinfo)
     except:
-        print("Error at dbpedia spotlight get")
-        return None
+        if service_url == SPOTLIGHT_ONLINE_API:
+            print("Error at dbpedia spotlight api")
+            return None
+        try:
+            print("Error at local dbpedia spotlight, trying with the api one")
+            resp = requests.get(SPOTLIGHT_ONLINE_API, params=parameters, headers=headerinfo)
+        except:
+            print("Error at dbpedia spotlight api")
+            return None
 
     if resp.status_code != 200:
-        print(f"error, status code{resp.status_code}")
+        print(f"error, status code: {resp.status_code}")
         return None
     else:
         decoded = json.loads(resp.text)
@@ -60,6 +68,20 @@ def load_dbo_graph(dbo_path):
     return g
 
 
+def is_word(entity, obj_text):
+    """ Check if entity maps with a word or group of words in obj_text """
+    pos = obj_text.find(entity.lower())
+    satisfy_left = True
+    if pos != 0:  # entity not situated at the beginning of the obj_text
+        char_left = obj_text[pos - 1]
+        satisfy_left = (char_left == ' ' or char_left in string.punctuation)
+    satisfy_right = True
+    if pos + len(entity) != len(obj_text):    # entity not situated at the end of the obj_text
+        char_right = obj_text[pos + len(entity)]
+        satisfy_right = (char_right == ' ' or char_right in string.punctuation)
+    return satisfy_left and satisfy_right
+
+
 def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cla_lex_table, dbo_graph):
     """
     Maybe this function should be inside the triple class
@@ -82,7 +104,8 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
         entity_selected_subj = []
         for entity in term_URI_dict.keys():
             if entity.lower() in subj_text:
-                entity_selected_subj.append(entity)
+                if is_word(entity, subj_text):
+                    entity_selected_subj.append(entity)
         # If more than one candidate, we take the longest one
         if entity_selected_subj:
             if len(entity_selected_subj) > 1:
@@ -90,39 +113,27 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
             else:
                 entity_name = entity_selected_subj[0]
         else:
+            triple_with_no_uri_log_subject(triple, subj_text)
             continue
         subject_URI = term_URI_dict[entity_name]
         subject_RDF = URIRef(subject_URI)
 
         if verb == "be" and prep == DEFAULT_VERB:
             pred_URI = prop_lex_table[verb][prep]
+            pred_RDF = URIRef(pred_URI)
             object_URI = get_dbo_class(obj_text, cla_lex_table)  # returns a unique URIRef or Literal
             if isinstance(object_URI, Literal):
-                triple_with_no_uri_log(timestr, triple, obj_text)  # save object Literal in log file
+                triple_with_no_uri_log_object(triple, obj_text)  # save object Literal in log file
                 continue
             else:
                 object_RDF = URIRef(object_URI)
+
+            # Build triple. RDF triples are made up by URI references or Literals
+            new_triple = triple.get_copy()
+            new_triple.set_rdf_triples(subject_RDF, pred_RDF, object_RDF)
+            new_triples.append(new_triple)
         else:
-            # URI for the object
-            entity_selected_obj = []
-            for entity in term_URI_dict.keys():
-                if entity.lower() in obj_text:
-                    if entity.lower() != "the":
-                        entity_selected_obj.append(entity)
-
-            if entity_selected_obj:
-                if len(entity_selected_obj) > 1:
-                    entity_name = max(entity_selected_obj, key=len)
-                else:
-                    entity_name = entity_selected_obj[0]
-
-                object_URI = term_URI_dict[entity_name]
-                object_RDF = URIRef(object_URI)
-            else:
-                object_URI = None
-                object_RDF = Literal(obj_text)
-
-            # Lexicalization predicate
+            # Lexicalization predicate (verb is not 'to be')
             if verb in prop_lex_table:
                 if prep in prop_lex_table[verb]:
                     if prop_lex_table[verb][prep] == UNKOWN_VALUE:
@@ -136,25 +147,57 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
 
             if (pred_URI == UNKOWN_VALUE) | (isinstance(pred_URI, Literal)):
                 # save object Literal in log file
-                triple_with_no_uri_log(timestr, triple, verb)
+                triple_with_no_uri_log(triple, verb)
                 continue
 
-        # Select the appropriate URI for the pred
-        if isinstance(pred_URI, list) and object_URI:
-            pred_URI = get_best_candidate(subject_URI, object_URI, pred_URI, term_types_dict, dbo_graph)
-        else:
-            if not isinstance(pred_URI, Literal):
-                pred_URI = URIRef(pred_URI)
+            # select mentions in the object identified by DBpedia Spotlight
+            entity_selected_obj = []
+            for entity in term_URI_dict.keys():
+                if entity.lower() in obj_text:
+                    if is_word(entity, obj_text) and entity.lower() != "the":
+                        entity_selected_obj.append(entity)
 
-        # Build triple. RDF triples are made up by URI references or Literals
-        new_triple = triple.get_copy()
-        new_triple.set_rdf_triples(subject_RDF, pred_URI, object_RDF)
-        new_triples.append(new_triple)
+            # Build triples
+            if entity_selected_obj:
+                for entity_name in entity_selected_obj:
+                    object_URI = term_URI_dict[entity_name]
+                    object_RDF = URIRef(object_URI)
+
+                    # Select the appropriate URI for the pred
+                    if isinstance(pred_URI, list):
+                        if object_URI:
+                            pred_RDF = get_best_candidate(subject_URI, object_URI, pred_URI, term_types_dict, dbo_graph)
+                        else:
+                            pred_RDF = URIRef(pred_URI[0])
+                    else:
+                        if not isinstance(pred_URI, Literal):
+                            pred_RDF = URIRef(pred_URI)
+
+                    new_triple = triple.get_copy()
+                    new_triple.set_rdf_triples(subject_RDF, pred_RDF, object_RDF)
+                    new_triples.append(new_triple)
+            # no mentions identified by DBpedia Spotlight. object is literal
+            else:
+                triple_with_no_uri_log_object2(triple, obj_text)  # save object Literal in log file
+                object_URI = None
+                object_RDF = Literal(obj_text)
+
+                # Select the appropriate URI for the pred
+                if isinstance(pred_URI, list):
+                    pred_RDF = URIRef(pred_URI[0])
+                else:
+                    if not isinstance(pred_URI, Literal):
+                        pred_RDF = URIRef(pred_URI)
+
+                # Build triple. RDF triples are made up by URI references or Literals
+                new_triple = triple.get_copy()
+                new_triple.set_rdf_triples(subject_RDF, pred_RDF, object_RDF)
+                new_triples.append(new_triple)
+
     return new_triples
 
 
 def get_best_candidate(subj, objct, preds_uri, term_types_dict, dbo_graph):
-
     # extract path from the URI, to avoid problems when using different schemas (http or https)
     subj_path = [x.partition("//")[2] for x in term_types_dict[subj]]
     objt_path = [x.partition("//")[2] for x in term_types_dict[objct]]
@@ -164,20 +207,19 @@ def get_best_candidate(subj, objct, preds_uri, term_types_dict, dbo_graph):
         score = 0
         uri = uri.replace("https:", "http:")  # URIs in ontology follow schema http
         uri = URIRef(uri)
-        # get range and domain from rdf graph
-        pred_range = dbo_graph.value(subject=uri, predicate=RDFS.range)
-        pred_domain = dbo_graph.value(subject=uri, predicate=RDFS.domain)
 
-        if pred_domain:
+        # get range and domain from rdf graph
+        if pred_domain := dbo_graph.value(subject=uri, predicate=RDFS.domain):
             pred_domain_path = pred_domain.partition("//")[2]
             # rdfs:domain states the classes that a subject with this property must match (at least one)
             if pred_domain_path in subj_path:
-                score = score + 1
-        if pred_range:
+                score += 1
+
+        if pred_range := dbo_graph.value(subject=uri, predicate=RDFS.range):
             pred_range_path = pred_range.partition("//")[2]
             # rdfs:range states the classes that an object with this predicate must match (at least one)
             if pred_range_path in objt_path:
-                score = score + 1
+                score += 1
         scores.append(score)
 
     best_score = max(scores)
