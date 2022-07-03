@@ -27,8 +27,11 @@ def get_annotated_text_dict(text, service_url=SPOTLIGHT_ONLINE_API, confidence=0
     try:
         resp = requests.get(service_url, params=parameters, headers=headerinfo)
     except:
+        if service_url == SPOTLIGHT_ONLINE_API:
+            print("Error at dbpedia spotlight api")
+            return None
         try:
-            print("Error at dbpedia spotlight post/get, trying with the api one")
+            print("Error at local dbpedia spotlight, trying with the api one")
             resp = requests.get(SPOTLIGHT_ONLINE_API, params=parameters, headers=headerinfo)
         except:
             print("Error at dbpedia spotlight api")
@@ -65,17 +68,17 @@ def load_dbo_graph(dbo_path):
     return g
 
 
-def is_word(entity, text):
+def is_word(entity, obj_text):
     """ Check if entity maps with a word or group of words in obj_text """
-    pos = text.find(entity.lower())
+    pos = obj_text.find(entity.lower())
     satisfy_left = True
     if pos != 0:  # entity not situated at the beginning of the obj_text
-        char_left = text[pos - 1]
-        satisfy_left = (char_left == ' ') or (char_left in string.punctuation)
+        char_left = obj_text[pos - 1]
+        satisfy_left = (char_left == ' ' or char_left in string.punctuation)
     satisfy_right = True
-    if pos + len(entity) != len(text):    # entity not situated at the end of the obj_text
-        char_right = text[pos + len(entity)]
-        satisfy_right = (char_right == ' ') or (char_right in string.punctuation)
+    if pos + len(entity) != len(obj_text):    # entity not situated at the end of the obj_text
+        char_right = obj_text[pos + len(entity)]
+        satisfy_right = (char_right == ' ' or char_right in string.punctuation)
     return satisfy_left and satisfy_right
 
 
@@ -100,8 +103,9 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
         # We select the entities included in the subject
         entity_selected_subj = []
         for entity in term_URI_dict.keys():
-            if (entity.lower() in subj_text) and (is_word(entity, subj_text)):
-                entity_selected_subj.append(entity)
+            if entity.lower() in subj_text:
+                if is_word(entity, subj_text):
+                    entity_selected_subj.append(entity)
         # If more than one candidate, we take the longest one
         if entity_selected_subj:
             if len(entity_selected_subj) > 1:
@@ -109,7 +113,7 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
             else:
                 entity_name = entity_selected_subj[0]
         else:
-            triple_with_no_uri_log_subject(timestr, triple, subj_text)
+            triple_with_no_uri_log_subject(triple, subj_text)
             continue
         subject_URI = term_URI_dict[entity_name]
         subject_RDF = URIRef(subject_URI)
@@ -119,7 +123,7 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
             pred_RDF = URIRef(pred_URI)
             object_URI = get_dbo_class(obj_text, cla_lex_table)  # returns a unique URIRef or Literal
             if isinstance(object_URI, Literal):
-                triple_with_no_uri_log_object(timestr, triple, obj_text)  # save object Literal in log file
+                triple_with_no_uri_log_object(triple, obj_text)  # save object Literal in log file
                 continue
             else:
                 object_RDF = URIRef(object_URI)
@@ -143,7 +147,7 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
 
             if (pred_URI == UNKOWN_VALUE) | (isinstance(pred_URI, Literal)):
                 # save object Literal in log file
-                triple_with_no_uri_log(timestr, triple, verb)
+                triple_with_no_uri_log(triple, verb)
                 continue
 
             # select mentions in the object identified by DBpedia Spotlight
@@ -174,7 +178,7 @@ def replace_text_URI(triples, term_URI_dict, term_types_dict, prop_lex_table, cl
                     new_triples.append(new_triple)
             # no mentions identified by DBpedia Spotlight. object is literal
             else:
-                triple_with_no_uri_log_object2(timestr, triple, obj_text)  # save object Literal in log file
+                triple_with_no_uri_log_object2(triple, obj_text)  # save object Literal in log file
                 object_URI = None
                 object_RDF = Literal(obj_text)
 
@@ -204,19 +208,18 @@ def get_best_candidate(subj, objct, preds_uri, term_types_dict, dbo_graph):
         uri = uri.replace("https:", "http:")  # URIs in ontology follow schema http
         uri = URIRef(uri)
         # get range and domain from rdf graph
-        pred_range = dbo_graph.value(subject=uri, predicate=RDFS.range)
-        pred_domain = dbo_graph.value(subject=uri, predicate=RDFS.domain)
 
-        if pred_domain:
+        if pred_domain := dbo_graph.value(subject=uri, predicate=RDFS.domain):
             pred_domain_path = pred_domain.partition("//")[2]
             # rdfs:domain states the classes that a subject with this property must match (at least one)
             if pred_domain_path in subj_path:
-                score = score + 1
-        if pred_range:
+                score += 1
+
+        if pred_range := dbo_graph.value(subject=uri, predicate=RDFS.range):
             pred_range_path = pred_range.partition("//")[2]
             # rdfs:range states the classes that an object with this predicate must match (at least one)
             if pred_range_path in objt_path:
-                score = score + 1
+                score += 1
         scores.append(score)
 
     best_score = max(scores)
@@ -248,5 +251,4 @@ def build_save_result_graph(triples, fpath):
         g.serialize(fpath, format='ttl')
     except:
         print(f"Error while saving the graph in{fpath}")
-#        exit()
     return g
