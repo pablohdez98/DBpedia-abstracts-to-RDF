@@ -4,7 +4,7 @@ Author: Fernando Casabán Blasco and Pablo Hernández Carrascosa
 """
 from spacy.matcher import DependencyMatcher, Matcher
 from utils.log_generator import tracking_log
-
+from spacy.tokens import Span
 
 class Triple:
     def __init__(self, subj, pred, objct, sent):
@@ -67,6 +67,8 @@ def get_simple_triples(nlp, sentence):
             span = doc[start + 2:end]
         preds.append(span[0])
         pos_of_verb = span[0].i
+    else:
+        return
 
     ## SUBJECT
     patt_SUBJS = [{"DEP": {"IN": ["nsubj", "nsubjpass"]}}]
@@ -89,17 +91,15 @@ def get_simple_triples(nlp, sentence):
                  {"LEFT_ID": "verb", "REL_OP": ">", "RIGHT_ID": "attr", "RIGHT_ATTRS": {"DEP": "attr"}}]
     patt_advmod_obj = [{"RIGHT_ID": "verb", "RIGHT_ATTRS": {"DEP": {"IN": ["ROOT", "xcomp"]}}},
                        {"LEFT_ID": "verb", "REL_OP": ">", "RIGHT_ID": "advmod",
-                        "RIGHT_ATTRS": {"DEP": {"IN": ["advmod", "pobj", "dobj"]}}}]
+                        "RIGHT_ATTRS": {"DEP": {"IN": ["advmod", "dobj"]}}}]
     patt_prep_obj = [{"RIGHT_ID": "verb", "RIGHT_ATTRS": {"DEP": {"IN": ["ROOT", "xcomp"]}}},
                      {"LEFT_ID": "verb", "REL_OP": ">", "RIGHT_ID": "prep", "RIGHT_ATTRS": {"DEP": "prep"}},
-                     {"LEFT_ID": "prep", "REL_OP": ">", "RIGHT_ID": "obj",
-                      "RIGHT_ATTRS": {"DEP": {"IN": ["pobj", "dobj"]}}}]
+                     {"LEFT_ID": "prep", "REL_OP": ">", "RIGHT_ID": "obj", "RIGHT_ATTRS": {"DEP": "pobj"}}]
     patt_be_acomp = [{"RIGHT_ID": "verb", "RIGHT_ATTRS": {"LEMMA": "be"}},
                      {"LEFT_ID": "verb", "REL_OP": ">", "RIGHT_ID": "acomp", "RIGHT_ATTRS": {"DEP": "acomp"}}]
     patt_agent_obj = [{"RIGHT_ID": "verb", "RIGHT_ATTRS": {"DEP": "ROOT"}},
                       {"LEFT_ID": "verb", "REL_OP": ">", "RIGHT_ID": "agent", "RIGHT_ATTRS": {"DEP": "agent"}},
-                      {"LEFT_ID": "agent", "REL_OP": ">", "RIGHT_ID": "obj",
-                       "RIGHT_ATTRS": {"DEP": {"IN": ["pobj", "dobj"]}}}]
+                      {"LEFT_ID": "agent", "REL_OP": ">", "RIGHT_ID": "obj", "RIGHT_ATTRS": {"DEP": "pobj"}}]
     patt_verb_conj = [{"RIGHT_ID": "verb", "RIGHT_ATTRS": {"DEP": "ROOT"}},
                       {"LEFT_ID": "verb", "REL_OP": ">", "RIGHT_ID": "conj", "RIGHT_ATTRS": {"DEP": "conj"}}]
 
@@ -147,14 +147,16 @@ def get_simple_triples(nlp, sentence):
                 objs.extend(simpler_objs)
                 for c in conjs:
                     prep_object = get_sentence_subtree_from_token(doc[c.i], ["cc", "conj"], inner=False)  # get next (prep + object)
-                    inside_object = [tk for tk in prep_object if (tk.dep_.find("obj") != -1)]
-                    simpler_objs = split_conjunctions_obj(prep_object, doc[c.i],
-                                                          inside_object[-1])  # coordinated tokens with the object
-                    objs.extend(simpler_objs)
+                    if prep_object[0].pos_ == "ADP":
+                        inside_object = [tk for tk in prep_object if (tk.dep_.find("obj") != -1)]
+                        if inside_object:
+                            simpler_objs = split_conjunctions_obj(prep_object, doc[c.i],inside_object[-1])  # coordinated tokens with the object
+                            objs.extend(simpler_objs)
+                    else:
+                        objs.append(prep_object)
             else:
                 prep_object = get_sentence_subtree_from_token(doc[token_id[1]], inner=False)  # there is only one object
-                simpler_objs = split_conjunctions_obj(prep_object, doc[token_id[1]],
-                                                      doc[token_id[2]])  # coordinated tokens within the object
+                simpler_objs = split_conjunctions_obj(prep_object, doc[token_id[1]], doc[token_id[2]])  # coordinated tokens within the object
                 objs.extend(simpler_objs)
 
         if string_id == "patt_agent_obj":
@@ -186,14 +188,30 @@ def get_simple_triples(nlp, sentence):
     triples = []
     for s in subjs:
         for o in objs:
+            if not o:
+                continue
             if o[0].pos_ == "ADP":
+                if o[0].text == "by":
+                    o = o[1:]  # remove token "by"
+                    if isinstance(o, list):
+                        temp = []
+                        [temp.extend([tk for tk in token]) if isinstance(token, Span) else temp.append(token) for token in o]
+                        o = temp
+                    subject_token_list = [token for token in o]  # swap subject and object
+                    object_token_list = [token for token in s]
+                    new_triple = Triple(subject_token_list, preds, object_token_list, sentence)  # change pred_prep by preds
+                    triples.append(new_triple)
+                    continue
+
                 pred_prep = [preds[0], o[0]]
                 o = o[1:]
             else:
                 pred_prep = preds
 
-            if type(o) == list:
-                o = o[0]
+            if isinstance(o, list):  # o may include Tokens and Spans in a same list
+                temp = []
+                [temp.extend([tk for tk in token]) if isinstance(token, Span) else temp.append(token) for token in o]
+                o = temp
 
             subject_token_list = [token for token in s]
             object_token_list = [token for token in o]
@@ -206,7 +224,11 @@ def get_simple_triples(nlp, sentence):
 def simplify_sentence(nlp, sentence):
     subsentences = []
 
-    doc = nlp(sentence.text)
+    if type(sentence) == str:
+        doc = nlp(sentence)
+        sentence = doc[:]
+    else:
+        doc = nlp(sentence.text)
 
     patt_relcl_attr = [
         {
@@ -215,7 +237,7 @@ def simplify_sentence(nlp, sentence):
         },
         {
             "LEFT_ID": "relcl",
-            "REL_OP": ">>",
+            "REL_OP": ">",
             "RIGHT_ID": "pron",
             "RIGHT_ATTRS": {"LOWER": {"IN": ["who", "which"]}}
         },
@@ -239,7 +261,7 @@ def simplify_sentence(nlp, sentence):
         },
         {
             "LEFT_ID": "relcl",
-            "REL_OP": ">>",
+            "REL_OP": ">",
             "RIGHT_ID": "pron",
             "RIGHT_ATTRS": {"LOWER": {"IN": ["who", "which"]}}
         },
@@ -257,7 +279,7 @@ def simplify_sentence(nlp, sentence):
         },
         {
             "LEFT_ID": "relcl",
-            "REL_OP": ">>",
+            "REL_OP": ">",
             "RIGHT_ID": "pron",
             "RIGHT_ATTRS": {"LOWER": {"IN": ["who", "which", "where"]}}
         }
@@ -282,17 +304,18 @@ def simplify_sentence(nlp, sentence):
         new_sentence = ' '.join([sentence[0:token_ids[1] - 1].text, sentence[token_ids[1]:-1].text])
         sentence = nlp(new_sentence)[0:-1]
     main_sentence = get_sentence_subtree_from_token(sentence.root, ["relcl"], nlp)
-    second_sentence = get_sentence_subtree_from_token(span)
+    second_sentence = get_sentence_subtree_from_token(span, nlp=nlp)
 
     new_sentence = []
     if string_id == "patt_relcl_attr":
         subj = [tkn for tkn in main_sentence if "subj" in tkn.dep_]
-        subj = get_sentence_subtree_from_token(subj[0])
-        [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in
-         second_sentence]
+        if subj:
+            subj = get_sentence_subtree_from_token(subj[0], nlp=nlp)
+        else:  # for sentences including "there is" or "there are", which haven't subjects
+            subj = get_sentence_subtree_from_token(sentence[token_ids[2]], ["relcl"], nlp)
+        [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in second_sentence]
     elif string_id == "patt_relcl_obj":
         obj = doc[token_ids[2]]
-        # obj = doc[token_ids[0]].head
         obj = get_sentence_subtree_from_token(obj, ["relcl"], nlp)
         [new_sentence.append(obj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in
          second_sentence]
@@ -300,16 +323,18 @@ def simplify_sentence(nlp, sentence):
         pron = doc[token_ids[1]].text
         if pron in ["who", "which"]:
             subj = [tkn for tkn in main_sentence if "subj" in tkn.dep_]
-            subj = get_sentence_subtree_from_token(subj[0])
-            [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in
-             second_sentence]
+            if subj:
+                subj = get_sentence_subtree_from_token(subj[0], ["relcl"], nlp=nlp)
+                [new_sentence.append(subj) if tkn.i == doc[token_ids[1]].i else new_sentence.append(tkn) for tkn in second_sentence]
         elif pron in ["where"]:
             [new_sentence.append(tkn) for tkn in second_sentence if tkn.i != doc[token_ids[1]].i]  # remove 'where'
-    second_sentence = ''.join([t.text_with_ws for t in new_sentence])
-    subsentences.append(main_sentence.text)
-    subsentences.append(second_sentence)
-    return subsentences
-
+    if new_sentence:
+        second_sentence = ''.join([t.text_with_ws for t in new_sentence])
+        subsentences.append(main_sentence.text)
+        subsentences.append(second_sentence)
+        return subsentences
+    else:
+        return []
 
 def get_sentence_subtree_from_token(token, stop_condition=None, nlp=None, inner=True):
     if stop_condition is None:
@@ -372,13 +397,52 @@ def split_conjunctions_obj(span, prep, object_token):
     conjunctions = object_token.conjuncts
     if conjunctions:
         # Build the first object
-        new_objects.append([prep, get_sentence_subtree_from_token(object_token, ["cc", "conj"])])
+        obj = get_sentence_subtree_from_token(object_token, ["cc", "conj"])
+        if obj:
+            new_objects.append([prep, obj])
         for conjunction in conjunctions:
-            new_objects.append([prep, get_sentence_subtree_from_token(conjunction, ["cc", "conj"])])
+            obj = get_sentence_subtree_from_token(conjunction, ["cc", "conj"])
+            if obj:
+                new_objects.append([prep, obj])
     else:
         # No conjunction tokens at the object part of the triple
         new_objects.append(span)
     return new_objects
+
+
+def split_conjunctions_verbs(nlp, span):
+    """
+    Search for chained verbs by conjunctions and splits in simpler sentences, here is an example:
+    Original: An engineer designs and directs projects
+    Result: An engineer designs projects, An engineer directs projects
+    """
+    doc = nlp(span)
+
+    first_verb = [token for token in doc if token.dep_ == "ROOT"]
+
+    if first_verb[0].pos_ in ['VERB', 'AUX']:
+        conjunctions = first_verb[0].conjuncts
+        if conjunctions:
+            simpler_sentences = []
+            shared_text_left = doc[:first_verb[0].i]  # span previous to the first verb
+            shared_text_right = doc[(conjunctions[-1].i + 1):]  # span after last verb
+
+            new = [token for token in shared_text_left]
+            new.append(first_verb[0])
+            new.extend([token for token in shared_text_right])
+            simpler_sentences.append(''.join([t.text_with_ws for t in new]))
+
+            for c in conjunctions:
+                new = [token for token in shared_text_left]
+                new.append(c)
+                new.extend([token for token in shared_text_right])
+                simpler_sentences.append(''.join([t.text_with_ws for t in new]))
+
+            return simpler_sentences
+        else:
+            return [span]
+    else:
+        return [span]
 
 
 def get_all_triples(nlp, sentences):
@@ -390,9 +454,21 @@ def get_all_triples(nlp, sentences):
     simple_sentences_tracking = []  # tracking
     for sentence in sentences:
         sententes_list = simplify_sentence(nlp, sentence)
-        [simple_sentences_tracking.append(simple) for simple in sententes_list]  # tracking
-        for s in sententes_list:
-            tps = get_simple_triples(nlp, s)
-            triples.extend(tps)
-    tracking_log(simple_sentences_tracking, level=3)
-    return triples
+        if len(sententes_list) > 1:
+            i = 0  # number of sentences processed
+            while len(sententes_list) != i:  # len(lista) is the number of sentences waiting to be simplified
+                result = simplify_sentence(nlp, sententes_list[i])
+                if len(result) == 1:  # check if the sentences was decomposed in simpler sentences
+                    i = i + 1
+                else:
+                    del sententes_list[i]  # substitute complex sentence by simpler sentences
+                    sententes_list[i:i] = result
+        for sent in sententes_list:
+            sent_simple_list = split_conjunctions_verbs(nlp, sent)
+
+            [simple_sentences_tracking.append(simple) for simple in sent_simple_list]  # tracking
+            for s in sent_simple_list:
+                tps = get_simple_triples(nlp, s)
+                triples.extend(tps)
+    tracking_log(simple_sentences_tracking, level=3)  # tracking
+    return triples, len(simple_sentences_tracking)
